@@ -1,150 +1,228 @@
 package com.example.piecontrols
 
+import android.animation.ValueAnimator
 import android.content.Context
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
-import android.net.Uri
-import android.os.Bundle
-import android.provider.Settings
-import android.view.Gravity
+import android.graphics.*
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.view.MotionEvent
 import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
+import android.view.animation.OvershootInterpolator
+import kotlin.math.*
 
-class MainActivity : AppCompatActivity() {
+class PieMenuView(
+    context: Context,
+    private val onActionSelected: (Int) -> Unit,
+    private val onDismiss: () -> Unit
+) : View(context) {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    private val slices = listOf(
+        Slice("Home", Color.parseColor("#2979FF"), 0),        // Vibrant Blue
+        Slice("Screenshot", Color.parseColor("#FF6D00"), 1),  // Vibrant Orange
+        Slice("Back", Color.parseColor("#22C55E"), 2),        // Vibrant Green
+        Slice("Volume", Color.parseColor("#FFB300"), 3)       // Vibrant Yellow
+    )
 
-        // Dark background matching screenshot
-        val rootLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#121114"))
-            setPadding(40, 60, 40, 40)
+    private var activeSlice = -1
+    private var startX = 0f
+    private var startY = 0f
+    private var animProgress = 0f
+
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        pathEffect = CornerPathEffect(38f) // Creates organic rounded petal corners
+    }
+
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 36f
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        setShadowLayer(6f, 0f, 2f, Color.parseColor("#66000000"))
+    }
+
+    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#B3222226")
+        style = Paint.Style.FILL
+    }
+
+    init {
+        setLayerType(LAYER_TYPE_SOFTWARE, null) // Required for shadows and path effects
+    }
+
+    fun setOrigin(x: Float, y: Float) {
+        startX = x
+        startY = y
+        activeSlice = -1
+
+        // Smooth spring fan-out animation
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 240
+            interpolator = OvershootInterpolator(1.2f)
+            addUpdateListener {
+                animProgress = it.animatedValue as Float
+                invalidate()
+            }
+            start()
         }
+    }
 
-        // Setup Permission Card
-        val permissionCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(40, 40, 40, 40)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1E1D22"))
-                cornerRadius = 32f
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (animProgress == 0f) return
+
+        // 1. Draw thumb anchor pill at screen edge
+        val anchorRect = RectF(startX - 50f, startY - 110f, startX + 30f, startY + 110f)
+        canvas.drawRoundRect(anchorRect, 40f, 40f, anchorPaint)
+
+        // Draw "A" letter indicator on thumb anchor
+        val letterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#E0E0E0")
+            textSize = 34f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        canvas.drawText("A", startX - 16f, startY + 12f, letterPaint)
+
+        // 2. Draw 4 rounded petal slices
+        val innerR = 120f * animProgress
+        val outerR = 390f * animProgress
+        val totalSpan = 150f
+        val sweepAngle = totalSpan / slices.size.toFloat()
+
+        slices.forEachIndexed { i, slice ->
+            val isSelected = (i == activeSlice)
+            val currentOuterR = if (isSelected) outerR + 25f else outerR
+
+            val startAngle = 105f + (i.toFloat() * sweepAngle)
+
+            // Construct rounded petal geometry
+            val path = Path()
+            val innerRect = RectF(startX - innerR, startY - innerR, startX + innerR, startY + innerR)
+            val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
+
+            path.arcTo(outerRect, startAngle + 3f, sweepAngle - 6f)
+            path.arcTo(innerRect, startAngle + sweepAngle - 3f, -(sweepAngle - 6f))
+            path.close()
+
+            fillPaint.color = slice.color
+            fillPaint.alpha = if (isSelected) 255 else 225
+            canvas.drawPath(path, fillPaint)
+
+            // Calculate center point for icon and label
+            val midAngle = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
+            val centerR = (innerR + currentOuterR) / 2f
+            val cx = (startX + centerR * cos(midAngle).toFloat())
+            val cy = (startY + centerR * sin(midAngle).toFloat())
+
+            // Draw Icon above text
+            drawSliceIcon(canvas, slice.id, cx, cy - 20f)
+
+            // Draw Text label
+            textPaint.color = Color.WHITE
+            canvas.drawText(slice.title, cx, cy + 42f, textPaint)
+        }
+    }
+
+    private fun drawSliceIcon(canvas: Canvas, id: Int, cx: Float, cy: Float) {
+        when (id) {
+            0 -> { // Home icon
+                val homePath = Path().apply {
+                    moveTo(cx - 24f, cy + 2f)
+                    lineTo(cx, cy - 20f)
+                    lineTo(cx + 24f, cy + 2f)
+                    lineTo(cx + 17f, cy + 2f)
+                    lineTo(cx + 17f, cy + 22f)
+                    lineTo(cx - 17f, cy + 22f)
+                    lineTo(cx - 17f, cy + 2f)
+                    close()
+                }
+                canvas.drawPath(homePath, iconPaint)
+            }
+            1 -> { // Screenshot / Viewfinder icon
+                val rect = RectF(cx - 22f, cy - 18f, cx + 22f, cy + 18f)
+                canvas.drawRoundRect(rect, 8f, 8f, iconPaint)
+                canvas.drawCircle(cx, cy, 7f, iconPaint)
+            }
+            2 -> { // Back chevron icon (<)
+                val backPath = Path().apply {
+                    moveTo(cx + 10f, cy - 20f)
+                    lineTo(cx - 10f, cy)
+                    lineTo(cx + 10f, cy + 20f)
+                }
+                canvas.drawPath(backPath, iconPaint)
+            }
+            3 -> { // Volume speaker icon
+                val speakerPath = Path().apply {
+                    moveTo(cx - 16f, cy - 8f)
+                    lineTo(cx - 6f, cy - 8f)
+                    lineTo(cx + 10f, cy - 18f)
+                    lineTo(cx + 10f, cy + 18f)
+                    lineTo(cx - 6f, cy + 8f)
+                    lineTo(cx - 16f, cy + 8f)
+                    close()
+                }
+                canvas.drawPath(speakerPath, iconPaint)
+                // Sound wave arc
+                canvas.drawArc(RectF(cx + 8f, cy - 12f, cx + 24f, cy + 12f), -45f, 90f, false, iconPaint)
             }
         }
+    }
 
-        val permTitle = TextView(this).apply {
-            text = "Permissions Required"
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 20)
-        }
-        permissionCard.addView(permTitle)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val dx = event.rawX - startX
+        val dy = event.rawY - startY
+        val dist = hypot(dx.toDouble(), dy.toDouble())
 
-        val overlayBtn = Button(this).apply {
-            text = "1. Enable 'Draw Over Apps'"
-            setBackgroundColor(Color.parseColor("#2979FF"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                if (!Settings.canDrawOverlays(this@MainActivity)) {
-                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        when (event.action) {
+            MotionEvent.ACTION_MOVE -> {
+                if (dist > 90.0) {
+                    var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
+                    if (angle < 0.0) angle += 360.0
+
+                    if (angle in 105.0..255.0) {
+                        val normalized = angle - 105.0
+                        val sliceIndex = (normalized / (150.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
+                        if (sliceIndex != activeSlice) {
+                            activeSlice = sliceIndex
+                            triggerHaptic()
+                            invalidate()
+                        }
+                    } else {
+                        if (activeSlice != -1) {
+                            activeSlice = -1
+                            invalidate()
+                        }
+                    }
                 }
             }
-        }
-        permissionCard.addView(overlayBtn)
-
-        val serviceBtn = Button(this).apply {
-            text = "2. Enable Accessibility Service"
-            setBackgroundColor(Color.parseColor("#22C55E"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            MotionEvent.ACTION_UP -> {
+                if (activeSlice != -1) {
+                    triggerHaptic()
+                    onActionSelected(slices[activeSlice].id)
+                }
+                onDismiss()
             }
+            MotionEvent.ACTION_CANCEL -> onDismiss()
         }
-        permissionCard.addView(serviceBtn)
-        rootLayout.addView(permissionCard)
-
-        // Spacer
-        rootLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, 40) })
-
-        // "Customize" Bottom Sheet Panel matching photo inset
-        val customizePanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 48)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#232228"))
-                cornerRadius = 44f
-            }
-        }
-
-        // Sheet grab handle
-        val handle = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(90, 10).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                setMargins(0, 0, 0, 36)
-            }
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#44434B"))
-                cornerRadius = 10f
-            }
-        }
-        customizePanel.addView(handle)
-
-        val header = TextView(this).apply {
-            text = "←   Customize"
-            textSize = 20f
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 36)
-        }
-        customizePanel.addView(header)
-
-        // Options from sample image
-        customizePanel.addView(createSettingRow("🎨", "Color Theme", "Selected: Vibrant"))
-        customizePanel.addView(createSettingRow("🍕", "Menu Type", "Semi-Circular"))
-        customizePanel.addView(createSettingRow("📱", "Bar Position", "Right"))
-        customizePanel.addView(createSettingRow("✥", "Tile Size", "Medium"))
-        customizePanel.addView(createSettingRow("📈", "Animation", "Edge Fan Out"))
-
-        rootLayout.addView(customizePanel)
-        setContentView(rootLayout)
+        return true
     }
 
-    private fun createSettingRow(icon: String, title: String, subtitle: String): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 22, 0, 22)
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        val iconView = TextView(this).apply {
-            text = icon
-            textSize = 20f
-            setPadding(0, 0, 32, 0)
-        }
-        row.addView(iconView)
-
-        val textLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
-        val titleView = TextView(this).apply {
-            text = title
-            textSize = 16f
-            setTextColor(Color.parseColor("#EDEDED"))
-        }
-        textLayout.addView(titleView)
-
-        val subtitleView = TextView(this).apply {
-            text = subtitle
-            textSize = 13f
-            setTextColor(Color.parseColor("#9B9AA0"))
-        }
-        textLayout.addView(subtitleView)
-
-        row.addView(textLayout)
-        return row
+    private fun triggerHaptic() {
+        try {
+            vibrator?.vibrate(VibrationEffect.createOneShot(18L, VibrationEffect.DEFAULT_AMPLITUDE))
+        } catch (_: Exception) {}
     }
+
+    data class Slice(val title: String, val color: Int, val id: Int)
 }
