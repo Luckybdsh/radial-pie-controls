@@ -33,7 +33,7 @@ class PieMenuView(
         typeface = Typeface.DEFAULT_BOLD
     }
 
-    fun setOrigin(x: float, y: Float) {
+    fun setOrigin(x: Float, y: Float) {
         startX = x
         startY = y
         activeSlice = -1
