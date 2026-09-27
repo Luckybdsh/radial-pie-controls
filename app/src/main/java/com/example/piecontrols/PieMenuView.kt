@@ -1,120 +1,150 @@
 package com.example.piecontrols
 
 import android.content.Context
-import android.graphics.Canvas
+import android.content.Intent
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
-import android.graphics.Typeface
-import android.view.MotionEvent
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Bundle
+import android.provider.Settings
+import android.view.Gravity
 import android.view.View
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.hypot
-import kotlin.math.sin
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 
-class PieMenuView(
-    context: Context,
-    private val onActionSelected: (Int) -> Unit,
-    private val onDismiss: () -> Unit
-) : View(context) {
+class MainActivity : AppCompatActivity() {
 
-    private val slices = listOf(
-        Slice("Home", Color.parseColor("#2A85FF"), 0),
-        Slice("Screenshot", Color.parseColor("#FF6C00"), 1),
-        Slice("Back", Color.parseColor("#22C55E"), 2),
-        Slice("Volume", Color.parseColor("#FFC800"), 3)
-    )
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-    private var activeSlice = -1
-    private var startX = 0f
-    private var startY = 0f
-
-    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        textSize = 42f
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
-    }
-
-    fun setOrigin(x: Float, y: Float) {
-        startX = x
-        startY = y
-        activeSlice = -1
-        invalidate()
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-
-        val innerR = 140f
-        val outerR = 400f
-        val totalSpan = 150f
-        val sweepAngle = totalSpan / slices.size.toFloat()
-
-        slices.forEachIndexed { i, slice ->
-            val startAngle = 105f + (i.toFloat() * sweepAngle)
-
-            val path = Path()
-            val innerRect = RectF(startX - innerR, startY - innerR, startX + innerR, startY + innerR)
-            val outerRect = RectF(startX - outerR, startY - outerR, startX + outerR, startY + outerR)
-
-            path.arcTo(outerRect, startAngle + 2f, sweepAngle - 4f)
-            path.arcTo(innerRect, startAngle + sweepAngle - 2f, -(sweepAngle - 4f))
-            path.close()
-
-            fillPaint.color = if (i == activeSlice) Color.WHITE else slice.color
-            fillPaint.alpha = if (i == activeSlice) 240 else 210
-            canvas.drawPath(path, fillPaint)
-
-            val midAngle = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
-            val textR = (innerR + outerR) / 2f
-            val tx = (startX + textR * cos(midAngle).toFloat())
-            val ty = (startY + textR * sin(midAngle).toFloat()) + 14f
-
-            textPaint.color = if (i == activeSlice) Color.BLACK else Color.WHITE
-            canvas.drawText(slice.title, tx, ty, textPaint)
+        // Dark background matching screenshot
+        val rootLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#121114"))
+            setPadding(40, 60, 40, 40)
         }
-    }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        val dx = event.rawX - startX
-        val dy = event.rawY - startY
-        val dist = hypot(dx.toDouble(), dy.toDouble())
+        // Setup Permission Card
+        val permissionCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1E1D22"))
+                cornerRadius = 32f
+            }
+        }
 
-        when (event.action) {
-            MotionEvent.ACTION_MOVE -> {
-                if (dist > 100.0) {
-                    var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
-                    if (angle < 0.0) angle += 360.0
+        val permTitle = TextView(this).apply {
+            text = "Permissions Required"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, 20)
+        }
+        permissionCard.addView(permTitle)
 
-                    if (angle in 105.0..255.0) {
-                        val normalized = angle - 105.0
-                        val sliceIndex = (normalized / (150.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
-                        if (sliceIndex != activeSlice) {
-                            activeSlice = sliceIndex
-                            invalidate()
-                        }
-                    } else {
-                        activeSlice = -1
-                        invalidate()
-                    }
+        val overlayBtn = Button(this).apply {
+            text = "1. Enable 'Draw Over Apps'"
+            setBackgroundColor(Color.parseColor("#2979FF"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                 }
             }
-            MotionEvent.ACTION_UP -> {
-                if (activeSlice != -1) {
-                    onActionSelected(slices[activeSlice].id)
-                }
-                onDismiss()
-            }
-            MotionEvent.ACTION_CANCEL -> onDismiss()
         }
-        return true
+        permissionCard.addView(overlayBtn)
+
+        val serviceBtn = Button(this).apply {
+            text = "2. Enable Accessibility Service"
+            setBackgroundColor(Color.parseColor("#22C55E"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+        }
+        permissionCard.addView(serviceBtn)
+        rootLayout.addView(permissionCard)
+
+        // Spacer
+        rootLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, 40) })
+
+        // "Customize" Bottom Sheet Panel matching photo inset
+        val customizePanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 48)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#232228"))
+                cornerRadius = 44f
+            }
+        }
+
+        // Sheet grab handle
+        val handle = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(90, 10).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, 36)
+            }
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#44434B"))
+                cornerRadius = 10f
+            }
+        }
+        customizePanel.addView(handle)
+
+        val header = TextView(this).apply {
+            text = "←   Customize"
+            textSize = 20f
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, 36)
+        }
+        customizePanel.addView(header)
+
+        // Options from sample image
+        customizePanel.addView(createSettingRow("🎨", "Color Theme", "Selected: Vibrant"))
+        customizePanel.addView(createSettingRow("🍕", "Menu Type", "Semi-Circular"))
+        customizePanel.addView(createSettingRow("📱", "Bar Position", "Right"))
+        customizePanel.addView(createSettingRow("✥", "Tile Size", "Medium"))
+        customizePanel.addView(createSettingRow("📈", "Animation", "Edge Fan Out"))
+
+        rootLayout.addView(customizePanel)
+        setContentView(rootLayout)
     }
 
-    data class Slice(val title: String, val color: Int, val id: Int)
+    private fun createSettingRow(icon: String, title: String, subtitle: String): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 22, 0, 22)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val iconView = TextView(this).apply {
+            text = icon
+            textSize = 20f
+            setPadding(0, 0, 32, 0)
+        }
+        row.addView(iconView)
+
+        val textLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val titleView = TextView(this).apply {
+            text = title
+            textSize = 16f
+            setTextColor(Color.parseColor("#EDEDED"))
+        }
+        textLayout.addView(titleView)
+
+        val subtitleView = TextView(this).apply {
+            text = subtitle
+            textSize = 13f
+            setTextColor(Color.parseColor("#9B9AA0"))
+        }
+        textLayout.addView(subtitleView)
+
+        row.addView(textLayout)
+        return row
+    }
 }
