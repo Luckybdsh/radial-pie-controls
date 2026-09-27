@@ -1,10 +1,18 @@
 package com.example.piecontrols
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.*
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.sin
 
 class PieMenuView(
     context: Context,
@@ -13,10 +21,10 @@ class PieMenuView(
 ) : View(context) {
 
     private val slices = listOf(
-        Slice("Home", 0xFF2A85FF.toInt(), 0),        // Top: Blue
-        Slice("Screenshot", 0xFFFF6C00.toInt(), 1),  // Mid-High: Orange
-        Slice("Back", 0xFF22C55E.toInt(), 2),        // Mid-Low: Green
-        Slice("Volume", 0xFFFFC800.toInt(), 3)       // Bottom: Yellow
+        Slice("Home", Color.parseColor("#2A85FF"), 0),
+        Slice("Screenshot", Color.parseColor("#FF6C00"), 1),
+        Slice("Back", Color.parseColor("#22C55E"), 2),
+        Slice("Volume", Color.parseColor("#FFC800"), 3)
     )
 
     private var activeSlice = -1
@@ -45,11 +53,11 @@ class PieMenuView(
 
         val innerR = 140f
         val outerR = 400f
-        val totalSpan = 150.0 // fanning over 150 degrees backwards from the edge
-        val sweepAngle = (totalSpan / slices.size).toFloat()
+        val totalSpan = 150f
+        val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
-            val startAngle = 105f + (i * sweepAngle) // spread across left-facing semicircle
+            val startAngle = 105f + (i.toFloat() * sweepAngle)
 
             val path = Path()
             val innerRect = RectF(startX - innerR, startY - innerR, startX + innerR, startY + innerR)
@@ -63,11 +71,10 @@ class PieMenuView(
             fillPaint.alpha = if (i == activeSlice) 240 else 210
             canvas.drawPath(path, fillPaint)
 
-            // Draw Label in center of slice
-            val midAngle = Math.toRadians((startAngle + sweepAngle / 2.0))
+            val midAngle = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
             val textR = (innerR + outerR) / 2f
-            val tx = (startX + textR * cos(midAngle)).toFloat()
-            val ty = (startY + textR * sin(midAngle)).toFloat() + 14f
+            val tx = (startX + textR * cos(midAngle).toFloat())
+            val ty = (startY + textR * sin(midAngle).toFloat()) + 14f
 
             textPaint.color = if (i == activeSlice) Color.BLACK else Color.WHITE
             canvas.drawText(slice.title, tx, ty, textPaint)
@@ -77,18 +84,17 @@ class PieMenuView(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val dx = event.rawX - startX
         val dy = event.rawY - startY
-        val dist = hypot(dx, dy)
+        val dist = hypot(dx.toDouble(), dy.toDouble())
 
         when (event.action) {
             MotionEvent.ACTION_MOVE -> {
-                if (dist > 100f) {
+                if (dist > 100.0) {
                     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
-                    if (angle < 0) angle += 360.0
+                    if (angle < 0.0) angle += 360.0
 
-                    // Map angle to slice index (105° to 255°)
                     if (angle in 105.0..255.0) {
                         val normalized = angle - 105.0
-                        val sliceIndex = (normalized / (150.0 / slices.size)).toInt().coerceIn(0, slices.size - 1)
+                        val sliceIndex = (normalized / (150.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
                             invalidate()
