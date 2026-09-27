@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Pie Controls</string>
+    <string name="accessibility_desc">Provides edge swipe radial navigation shortcuts for Home, Back, Screenshot, and Volume.</string>
+</resources>
