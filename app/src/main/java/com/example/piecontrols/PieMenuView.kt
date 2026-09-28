@@ -17,10 +17,10 @@ class PieMenuView(
 ) : View(context) {
 
     private val slices = listOf(
-        Slice("Home", Color.parseColor("#2979FF"), 0),        // Vibrant Blue
-        Slice("Screenshot", Color.parseColor("#FF6D00"), 1),  // Vibrant Orange
-        Slice("Back", Color.parseColor("#22C55E"), 2),        // Vibrant Green
-        Slice("Volume", Color.parseColor("#FFB300"), 3)       // Vibrant Yellow
+        Slice("Home", Color.parseColor("#00E5FF"), 0),        // Neon Cyan
+        Slice("Screenshot", Color.parseColor("#B388FF"), 1),  // Neon Purple
+        Slice("Back", Color.parseColor("#69F0AE"), 2),        // Neon Mint
+        Slice("Volume", Color.parseColor("#FF8A80"), 3)       // Neon Coral
     )
 
     private var activeSlice = -1
@@ -30,34 +30,35 @@ class PieMenuView(
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
+    // Increased PathEffect for extreme, buttery-smooth squircle corners
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        pathEffect = CornerPathEffect(38f) // Creates organic rounded petal corners
+        pathEffect = CornerPathEffect(65f) 
     }
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 36f
+        textSize = 38f
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        setShadowLayer(6f, 0f, 2f, Color.parseColor("#66000000"))
+        setShadowLayer(8f, 0f, 4f, Color.parseColor("#99000000"))
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.STROKE
-        strokeWidth = 6f
+        strokeWidth = 7f
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
 
-    private val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#B3222226")
-        style = Paint.Style.FILL
+    private val bgDimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
     }
 
     init {
-        setLayerType(LAYER_TYPE_SOFTWARE, null) // Required for shadows and path effects
+        // Required for hardware-accelerated glowing shadows and path effects
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
     fun setOrigin(x: Float, y: Float) {
@@ -65,10 +66,10 @@ class PieMenuView(
         startY = y
         activeSlice = -1
 
-        // Smooth spring fan-out animation
+        // Aggressive spring pop animation
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 240
-            interpolator = OvershootInterpolator(1.2f)
+            duration = 350 // Slightly longer for the satisfying spring finish
+            interpolator = OvershootInterpolator(1.6f) // High tension bounce
             addUpdateListener {
                 animProgress = it.animatedValue as Float
                 invalidate()
@@ -79,64 +80,85 @@ class PieMenuView(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (animProgress == 0f) return
+        if (animProgress <= 0f) return
 
-        // 1. Draw thumb anchor pill at screen edge
-        val anchorRect = RectF(startX - 50f, startY - 110f, startX + 30f, startY + 110f)
-        canvas.drawRoundRect(anchorRect, 40f, 40f, anchorPaint)
+        // 1. Draw smooth background screen dim (fades in to 45% opacity)
+        bgDimPaint.alpha = (110 * animProgress.coerceIn(0f, 1f)).toInt()
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgDimPaint)
 
-        // Draw "A" letter indicator on thumb anchor
-        val letterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E0E0E0")
-            textSize = 34f
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        canvas.drawText("A", startX - 16f, startY + 12f, letterPaint)
+        // 2. Global Canvas Rotation for the Unfurling Spin Effect
+        canvas.save()
+        val spinRotation = -75f * (1f - animProgress) // Spins out from -75 degrees
+        canvas.rotate(spinRotation, startX, startY)
 
-        // 2. Draw 4 rounded petal slices
-        val innerR = 120f * animProgress
-        val outerR = 390f * animProgress
-        val totalSpan = 150f
+        val baseInnerR = 130f * animProgress
+        val baseOuterR = 400f * animProgress
+        val totalSpan = 160f // Total degrees the fan covers
+        val gapAngle = 7f    // Sharp 7-degree gap between tiles
         val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
             val isSelected = (i == activeSlice)
-            val currentOuterR = if (isSelected) outerR + 25f else outerR
+            
+            // Dramatic pop for the active tile
+            val currentOuterR = if (isSelected) baseOuterR + 45f else baseOuterR
+            val currentInnerR = if (isSelected) baseInnerR - 15f else baseInnerR
 
-            val startAngle = 105f + (i.toFloat() * sweepAngle)
+            val startAngle = 100f + (i.toFloat() * sweepAngle)
+            val actualStart = startAngle + (gapAngle / 2f)
+            val actualSweep = sweepAngle - gapAngle
 
-            // Construct rounded petal geometry
+            // Construct geometry
             val path = Path()
-            val innerRect = RectF(startX - innerR, startY - innerR, startX + innerR, startY + innerR)
+            val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
             val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
 
-            path.arcTo(outerRect, startAngle + 3f, sweepAngle - 6f)
-            path.arcTo(innerRect, startAngle + sweepAngle - 3f, -(sweepAngle - 6f))
+            path.arcTo(outerRect, actualStart, actualSweep)
+            path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
             path.close()
 
+            // Dynamic colors and glowing shadow on hover
             fillPaint.color = slice.color
-            fillPaint.alpha = if (isSelected) 255 else 225
+            if (isSelected) {
+                fillPaint.alpha = 255
+                fillPaint.setShadowLayer(30f, 0f, 0f, slice.color) // Neon glow
+            } else {
+                fillPaint.alpha = (210 * animProgress.coerceIn(0f, 1f)).toInt()
+                fillPaint.clearShadowLayer()
+            }
+            
             canvas.drawPath(path, fillPaint)
 
-            // Calculate center point for icon and label
-            val midAngle = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
-            val centerR = (innerR + currentOuterR) / 2f
+            // Center calculations for text/icons
+            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
+            val centerR = (currentInnerR + currentOuterR) / 2f
             val cx = (startX + centerR * cos(midAngle).toFloat())
             val cy = (startY + centerR * sin(midAngle).toFloat())
 
-            // Draw Icon above text
+            // Animate text/icon scale with the tile
+            val scale = if (isSelected) 1.15f else 1f
+            canvas.save()
+            canvas.scale(scale, scale, cx, cy)
+            
             drawSliceIcon(canvas, slice.id, cx, cy - 20f)
-
-            // Draw Text label
-            textPaint.color = Color.WHITE
-            canvas.drawText(slice.title, cx, cy + 42f, textPaint)
+            canvas.drawText(slice.title, cx, cy + 46f, textPaint)
+            
+            canvas.restore()
         }
+        
+        canvas.restore() // End spinning rotation
+
+        // 3. Draw static thumb anchor over top of everything
+        val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#40FFFFFF") // Frosted white grip
+        }
+        val anchorRect = RectF(startX - 20f, startY - 90f, startX + 15f, startY + 90f)
+        canvas.drawRoundRect(anchorRect, 30f, 30f, anchorPaint)
     }
 
     private fun drawSliceIcon(canvas: Canvas, id: Int, cx: Float, cy: Float) {
         when (id) {
-            0 -> { // Home icon
+            0 -> { // Home
                 val homePath = Path().apply {
                     moveTo(cx - 24f, cy + 2f)
                     lineTo(cx, cy - 20f)
@@ -149,12 +171,12 @@ class PieMenuView(
                 }
                 canvas.drawPath(homePath, iconPaint)
             }
-            1 -> { // Screenshot / Viewfinder icon
-                val rect = RectF(cx - 22f, cy - 18f, cx + 22f, cy + 18f)
+            1 -> { // Screenshot
+                val rect = RectF(cx - 24f, cy - 18f, cx + 24f, cy + 18f)
                 canvas.drawRoundRect(rect, 8f, 8f, iconPaint)
                 canvas.drawCircle(cx, cy, 7f, iconPaint)
             }
-            2 -> { // Back chevron icon (<)
+            2 -> { // Back
                 val backPath = Path().apply {
                     moveTo(cx + 10f, cy - 20f)
                     lineTo(cx - 10f, cy)
@@ -162,7 +184,7 @@ class PieMenuView(
                 }
                 canvas.drawPath(backPath, iconPaint)
             }
-            3 -> { // Volume speaker icon
+            3 -> { // Volume
                 val speakerPath = Path().apply {
                     moveTo(cx - 16f, cy - 8f)
                     lineTo(cx - 6f, cy - 8f)
@@ -173,13 +195,15 @@ class PieMenuView(
                     close()
                 }
                 canvas.drawPath(speakerPath, iconPaint)
-                // Sound wave arc
                 canvas.drawArc(RectF(cx + 8f, cy - 12f, cx + 24f, cy + 12f), -45f, 90f, false, iconPaint)
             }
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // Prevent touch interactions while the pop-in animation is running
+        if (animProgress < 0.9f) return true
+
         val dx = event.rawX - startX
         val dy = event.rawY - startY
         val dist = hypot(dx.toDouble(), dy.toDouble())
@@ -190,13 +214,13 @@ class PieMenuView(
                     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
                     if (angle < 0.0) angle += 360.0
 
-                    if (angle in 105.0..255.0) {
-                        val normalized = angle - 105.0
-                        val sliceIndex = (normalized / (150.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
+                    if (angle in 100.0..260.0) {
+                        val normalized = angle - 100.0
+                        val sliceIndex = (normalized / (160.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
                             triggerHaptic()
-                            invalidate()
+                            invalidate() // Redraws to show hover pop and glow
                         }
                     } else {
                         if (activeSlice != -1) {
