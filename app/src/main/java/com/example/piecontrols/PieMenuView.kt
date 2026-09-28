@@ -16,13 +16,7 @@ class PieMenuView(
     private val onDismiss: () -> Unit
 ) : View(context) {
 
-    private val slices = listOf(
-        Slice("Home", Color.parseColor("#00E5FF"), 0),        // Neon Cyan
-        Slice("Screenshot", Color.parseColor("#B388FF"), 1),  // Neon Purple
-        Slice("Back", Color.parseColor("#69F0AE"), 2),        // Neon Mint
-        Slice("Volume", Color.parseColor("#FF8A80"), 3)       // Neon Coral
-    )
-
+    private val slices = mutableListOf<Slice>()
     private var activeSlice = -1
     private var startX = 0f
     private var startY = 0f
@@ -30,7 +24,6 @@ class PieMenuView(
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
-    // Increased PathEffect for extreme, buttery-smooth squircle corners
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         pathEffect = CornerPathEffect(65f) 
@@ -38,7 +31,7 @@ class PieMenuView(
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 38f
+        textSize = 36f
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         setShadowLayer(8f, 0f, 4f, Color.parseColor("#99000000"))
@@ -52,13 +45,39 @@ class PieMenuView(
         strokeJoin = Paint.Join.ROUND
     }
 
-    private val bgDimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK
-    }
+    private val bgDimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
 
     init {
-        // Required for hardware-accelerated glowing shadows and path effects
         setLayerType(LAYER_TYPE_SOFTWARE, null)
+        loadPreferences() // Loads dynamic tiles on launch
+    }
+
+    private fun loadPreferences() {
+        val prefs = context.getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
+        val tileCount = prefs.getInt("PREF_TILE_COUNT", 5) // Default 5 tiles
+        val theme = prefs.getString("PREF_THEME", "Neon") ?: "Neon"
+
+        val themeColors = when (theme) {
+            "Pastel" -> listOf("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#E8BAFF")
+            "Mono" -> listOf("#FFFFFF", "#CCCCCC", "#A3A3A3", "#7A7A7A", "#525252", "#292929")
+            else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081") // Neon
+        }
+
+        val availableActions = listOf(
+            Triple("Back", 2, 2),        // ID 2 = Back
+            Triple("Home", 0, 0),        // ID 0 = Home
+            Triple("Recents", 4, 4),     // ID 4 = Recents
+            Triple("Screen", 1, 1),      // ID 1 = Screenshot
+            Triple("Volume", 3, 3),      // ID 3 = Volume
+            Triple("Notifs", 5, 5)       // ID 5 = Notifications
+        )
+
+        slices.clear()
+        for (i in 0 until tileCount) {
+            val action = availableActions[i % availableActions.size]
+            val color = Color.parseColor(themeColors[i % themeColors.size])
+            slices.add(Slice(action.first, color, action.second))
+        }
     }
 
     fun setOrigin(x: Float, y: Float) {
@@ -66,10 +85,9 @@ class PieMenuView(
         startY = y
         activeSlice = -1
 
-        // Aggressive spring pop animation
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 350 // Slightly longer for the satisfying spring finish
-            interpolator = OvershootInterpolator(1.6f) // High tension bounce
+            duration = 350 
+            interpolator = OvershootInterpolator(1.6f) 
             addUpdateListener {
                 animProgress = it.animatedValue as Float
                 invalidate()
@@ -82,25 +100,21 @@ class PieMenuView(
         super.onDraw(canvas)
         if (animProgress <= 0f) return
 
-        // 1. Draw smooth background screen dim (fades in to 45% opacity)
         bgDimPaint.alpha = (110 * animProgress.coerceIn(0f, 1f)).toInt()
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgDimPaint)
 
-        // 2. Global Canvas Rotation for the Unfurling Spin Effect
         canvas.save()
-        val spinRotation = -75f * (1f - animProgress) // Spins out from -75 degrees
-        canvas.rotate(spinRotation, startX, startY)
+        canvas.rotate(-75f * (1f - animProgress), startX, startY)
 
-        val baseInnerR = 130f * animProgress
-        val baseOuterR = 400f * animProgress
-        val totalSpan = 160f // Total degrees the fan covers
-        val gapAngle = 7f    // Sharp 7-degree gap between tiles
-        val sweepAngle = totalSpan / slices.size.toFloat()
+        val baseInnerR = 140f * animProgress
+        val baseOuterR = 410f * animProgress
+        val totalSpan = 165f 
+        val gapAngle = 7f    
+        val sweepAngle = totalSpan / slices.size.toFloat() // Dynamically adjusts size based on tile count!
 
         slices.forEachIndexed { i, slice ->
             val isSelected = (i == activeSlice)
             
-            // Dramatic pop for the active tile
             val currentOuterR = if (isSelected) baseOuterR + 45f else baseOuterR
             val currentInnerR = if (isSelected) baseInnerR - 15f else baseInnerR
 
@@ -108,7 +122,6 @@ class PieMenuView(
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
 
-            // Construct geometry
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
             val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
@@ -117,11 +130,10 @@ class PieMenuView(
             path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
             path.close()
 
-            // Dynamic colors and glowing shadow on hover
             fillPaint.color = slice.color
             if (isSelected) {
                 fillPaint.alpha = 255
-                fillPaint.setShadowLayer(30f, 0f, 0f, slice.color) // Neon glow
+                fillPaint.setShadowLayer(30f, 0f, 0f, slice.color) 
             } else {
                 fillPaint.alpha = (210 * animProgress.coerceIn(0f, 1f)).toInt()
                 fillPaint.clearShadowLayer()
@@ -129,29 +141,22 @@ class PieMenuView(
             
             canvas.drawPath(path, fillPaint)
 
-            // Center calculations for text/icons
             val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
             val centerR = (currentInnerR + currentOuterR) / 2f
             val cx = (startX + centerR * cos(midAngle).toFloat())
             val cy = (startY + centerR * sin(midAngle).toFloat())
 
-            // Animate text/icon scale with the tile
             val scale = if (isSelected) 1.15f else 1f
             canvas.save()
             canvas.scale(scale, scale, cx, cy)
             
             drawSliceIcon(canvas, slice.id, cx, cy - 20f)
             canvas.drawText(slice.title, cx, cy + 46f, textPaint)
-            
             canvas.restore()
         }
-        
-        canvas.restore() // End spinning rotation
+        canvas.restore() 
 
-        // 3. Draw static thumb anchor over top of everything
-        val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#40FFFFFF") // Frosted white grip
-        }
+        val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#40FFFFFF") }
         val anchorRect = RectF(startX - 20f, startY - 90f, startX + 15f, startY + 90f)
         canvas.drawRoundRect(anchorRect, 30f, 30f, anchorPaint)
     }
@@ -159,51 +164,37 @@ class PieMenuView(
     private fun drawSliceIcon(canvas: Canvas, id: Int, cx: Float, cy: Float) {
         when (id) {
             0 -> { // Home
-                val homePath = Path().apply {
-                    moveTo(cx - 24f, cy + 2f)
-                    lineTo(cx, cy - 20f)
-                    lineTo(cx + 24f, cy + 2f)
-                    lineTo(cx + 17f, cy + 2f)
-                    lineTo(cx + 17f, cy + 22f)
-                    lineTo(cx - 17f, cy + 22f)
-                    lineTo(cx - 17f, cy + 2f)
-                    close()
-                }
-                canvas.drawPath(homePath, iconPaint)
+                val path = Path().apply { moveTo(cx - 24f, cy + 2f); lineTo(cx, cy - 20f); lineTo(cx + 24f, cy + 2f); lineTo(cx + 17f, cy + 2f); lineTo(cx + 17f, cy + 22f); lineTo(cx - 17f, cy + 22f); lineTo(cx - 17f, cy + 2f); close() }
+                canvas.drawPath(path, iconPaint)
             }
             1 -> { // Screenshot
-                val rect = RectF(cx - 24f, cy - 18f, cx + 24f, cy + 18f)
-                canvas.drawRoundRect(rect, 8f, 8f, iconPaint)
+                canvas.drawRoundRect(RectF(cx - 24f, cy - 18f, cx + 24f, cy + 18f), 8f, 8f, iconPaint)
                 canvas.drawCircle(cx, cy, 7f, iconPaint)
             }
             2 -> { // Back
-                val backPath = Path().apply {
-                    moveTo(cx + 10f, cy - 20f)
-                    lineTo(cx - 10f, cy)
-                    lineTo(cx + 10f, cy + 20f)
-                }
-                canvas.drawPath(backPath, iconPaint)
+                val path = Path().apply { moveTo(cx + 10f, cy - 20f); lineTo(cx - 10f, cy); lineTo(cx + 10f, cy + 20f) }
+                canvas.drawPath(path, iconPaint)
             }
             3 -> { // Volume
-                val speakerPath = Path().apply {
-                    moveTo(cx - 16f, cy - 8f)
-                    lineTo(cx - 6f, cy - 8f)
-                    lineTo(cx + 10f, cy - 18f)
-                    lineTo(cx + 10f, cy + 18f)
-                    lineTo(cx - 6f, cy + 8f)
-                    lineTo(cx - 16f, cy + 8f)
-                    close()
-                }
-                canvas.drawPath(speakerPath, iconPaint)
+                val path = Path().apply { moveTo(cx - 16f, cy - 8f); lineTo(cx - 6f, cy - 8f); lineTo(cx + 10f, cy - 18f); lineTo(cx + 10f, cy + 18f); lineTo(cx - 6f, cy + 8f); lineTo(cx - 16f, cy + 8f); close() }
+                canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx + 8f, cy - 12f, cx + 24f, cy + 12f), -45f, 90f, false, iconPaint)
+            }
+            4 -> { // Recents (Android squares)
+                canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx + 8f, cy + 8f), 4f, 4f, iconPaint)
+                val path = Path().apply { moveTo(cx - 6f, cy + 16f); lineTo(cx + 16f, cy + 16f); lineTo(cx + 16f, cy - 6f) }
+                canvas.drawPath(path, iconPaint)
+            }
+            5 -> { // Notifications (Bell)
+                val path = Path().apply { moveTo(cx, cy - 16f); arcTo(RectF(cx - 12f, cy - 16f, cx + 12f, cy + 8f), 180f, 180f); lineTo(cx + 18f, cy + 12f); lineTo(cx - 18f, cy + 12f); close() }
+                canvas.drawPath(path, iconPaint)
+                canvas.drawArc(RectF(cx - 6f, cy + 12f, cx + 6f, cy + 24f), 0f, 180f, false, iconPaint)
             }
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Prevent touch interactions while the pop-in animation is running
         if (animProgress < 0.9f) return true
-
         val dx = event.rawX - startX
         val dy = event.rawY - startY
         val dist = hypot(dx.toDouble(), dy.toDouble())
@@ -214,13 +205,13 @@ class PieMenuView(
                     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
                     if (angle < 0.0) angle += 360.0
 
-                    if (angle in 100.0..260.0) {
+                    if (angle in 100.0..265.0) {
                         val normalized = angle - 100.0
-                        val sliceIndex = (normalized / (160.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
+                        val sliceIndex = (normalized / (165.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
                             triggerHaptic()
-                            invalidate() // Redraws to show hover pop and glow
+                            invalidate() 
                         }
                     } else {
                         if (activeSlice != -1) {
@@ -243,9 +234,7 @@ class PieMenuView(
     }
 
     private fun triggerHaptic() {
-        try {
-            vibrator?.vibrate(VibrationEffect.createOneShot(18L, VibrationEffect.DEFAULT_AMPLITUDE))
-        } catch (_: Exception) {}
+        try { vibrator?.vibrate(VibrationEffect.createOneShot(18L, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
     }
 
     data class Slice(val title: String, val color: Int, val id: Int)
