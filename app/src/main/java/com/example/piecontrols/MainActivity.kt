@@ -3,11 +3,14 @@ package com.example.piecontrols
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.DragEvent
 import android.view.Gravity
 import android.view.View
@@ -21,11 +24,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var dragContainer: LinearLayout
     private var currentTiles = mutableListOf<TileData>()
+    
+    // UI Elements for permissions
+    private lateinit var overlayCard: LinearLayout
+    private lateinit var accessibilityCard: LinearLayout
+    private lateinit var statusDot: View
+    private lateinit var statusText: TextView
 
-    // Master list of all available actions
     private val allActions = mapOf(
         0 to "Home", 1 to "Screenshot", 2 to "Back",
-        3 to "Volume", 4 to "Recents", 5 to "Notifs", 6 to "App"
+        3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open App (YouTube)"
     )
 
     data class TileData(val id: Int, val name: String)
@@ -44,9 +52,14 @@ class MainActivity : AppCompatActivity() {
             setPadding(48, 64, 48, 64)
         }
 
+        // 1. RESTORED: Top Control Panel (Turn On/Off & Permissions)
+        mainLayout.addView(createTopControlPanel())
+
+        // 2. Sliders
         mainLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         mainLayout.addView(createSlidersPanel())
 
+        // 3. Drag and Drop
         mainLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
         mainLayout.addView(createDragDropPanel())
 
@@ -55,6 +68,100 @@ class MainActivity : AppCompatActivity() {
 
         loadTiles()
     }
+
+    override fun onResume() {
+        super.onResume()
+        refreshPermissionStates()
+    }
+
+    // --- RESTORED PERMISSION PANEL METHODS ---
+    private fun createTopControlPanel(): View {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#121214"))
+                cornerRadius = 40f
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, 40) }
+        }
+
+        val statusRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 24)
+        }
+
+        statusDot = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(18, 18).apply { setMargins(0, 0, 16, 0) }
+            background = GradientDrawable().apply { setColor(Color.parseColor("#FF453A")); cornerRadius = 90f }
+        }
+        
+        statusText = TextView(this).apply {
+            text = "SERVICE STATUS"
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#FF453A"))
+            letterSpacing = 0.1f
+        }
+        statusRow.addView(statusDot)
+        statusRow.addView(statusText)
+        panel.addView(statusRow)
+
+        val permissionsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 16, 0, 0)
+            weightSum = 2f
+        }
+
+        overlayCard = createPermissionBox("Screen Overlay").apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(0, 0, 16, 0) }
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            }
+        }
+        
+        accessibilityCard = createPermissionBox("Accessibility").apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(16, 0, 0, 0) }
+            setOnClickListener {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+        }
+
+        permissionsRow.addView(overlayCard)
+        permissionsRow.addView(accessibilityCard)
+        panel.addView(permissionsRow)
+
+        return panel
+    }
+
+    private fun createPermissionBox(title: String): LinearLayout {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#1A0909")); setStroke(3, Color.parseColor("#3D1616")); cornerRadius = 24f }
+        }
+        box.addView(TextView(this).apply {
+            text = title
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#FF8A80"))
+        })
+        return box
+    }
+
+    private fun refreshPermissionStates() {
+        if (Settings.canDrawOverlays(this)) {
+            statusDot.background = GradientDrawable().apply { setColor(Color.parseColor("#34C759")); cornerRadius = 90f }
+            statusText.text = "SERVICE READY (Tap Accessibility to Restart)"
+            statusText.setTextColor(Color.parseColor("#34C759"))
+            overlayCard.background = GradientDrawable().apply { setColor(Color.parseColor("#091A0F")); setStroke(3, Color.parseColor("#163D22")); cornerRadius = 24f }
+        }
+    }
+    
+    // --- SLIDERS & DRAG DROP METHODS ---
 
     private fun createSectionTitle(title: String, subtitle: String = ""): View {
         val row = LinearLayout(this).apply {
@@ -88,12 +195,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // --- HEIGHT SLIDER ---
-        val heightLabel = TextView(this).apply {
-            text = "Bar Height"
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 16)
-        }
+        val heightLabel = TextView(this).apply { text = "Bar Height"; setTextColor(Color.WHITE); setPadding(0, 0, 0, 16) }
         val heightSlider = SeekBar(this).apply {
             max = 1200
             progress = prefs.getInt("PREF_BAR_HEIGHT", 750) - 200
@@ -106,14 +208,9 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        // --- POSITION SLIDER ---
-        val posLabel = TextView(this).apply {
-            text = "Bar Vertical Position"
-            setTextColor(Color.WHITE)
-            setPadding(0, 48, 0, 16)
-        }
+        val posLabel = TextView(this).apply { text = "Bar Vertical Position"; setTextColor(Color.WHITE); setPadding(0, 48, 0, 16) }
         val posSlider = SeekBar(this).apply {
-            max = 1000 // -500 to +500
+            max = 1000 
             progress = prefs.getInt("PREF_BAR_POS", 0) + 500
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -135,10 +232,7 @@ class MainActivity : AppCompatActivity() {
         dragContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 24, 24, 24)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#121214"))
-                cornerRadius = 40f
-            }
+            background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
         }
         return dragContainer
     }
@@ -162,16 +256,14 @@ class MainActivity : AppCompatActivity() {
             val tileView = createTileRow(tile.name)
             tileView.tag = index 
 
-            // Enable starting the drag on long press
             tileView.setOnLongClickListener { v ->
-                val item = ClipData.Item(index.toString()) // Pass the index being dragged
+                val item = ClipData.Item(index.toString())
                 val dragData = ClipData(v.tag.toString(), arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), item)
                 val shadow = View.DragShadowBuilder(v)
                 v.startDragAndDrop(dragData, shadow, null, 0)
                 true
             }
 
-            // Handle dropping another item onto this one
             tileView.setOnDragListener { v, event ->
                 when (event.action) {
                     DragEvent.ACTION_DRAG_STARTED -> true
@@ -188,10 +280,9 @@ class MainActivity : AppCompatActivity() {
                         val draggedIndex = event.clipData.getItemAt(0).text.toString().toInt()
                         val targetIndex = v.tag as Int
                         
-                        // Swap the data in the array
                         Collections.swap(currentTiles, draggedIndex, targetIndex)
                         saveTileOrder()
-                        renderTiles() // Redraw the new list
+                        renderTiles() 
                         true
                     }
                     DragEvent.ACTION_DRAG_ENDED -> {
