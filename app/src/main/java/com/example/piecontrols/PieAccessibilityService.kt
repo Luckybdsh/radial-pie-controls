@@ -105,7 +105,7 @@ class PieAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun executeAction(id: Int) {
+        private fun executeAction(id: Int) {
         when (id) {
             0 -> performGlobalAction(GLOBAL_ACTION_HOME)
             1 -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
@@ -114,7 +114,11 @@ class PieAccessibilityService : AccessibilityService() {
                 val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
             }
+            4 -> performGlobalAction(GLOBAL_ACTION_RECENTS) // Added Recents
+            5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) // Added Notifications
         }
+    }
+
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
