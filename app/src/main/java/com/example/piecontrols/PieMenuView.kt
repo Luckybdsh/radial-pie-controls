@@ -26,15 +26,7 @@ class PieMenuView(
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        pathEffect = CornerPathEffect(65f) 
-    }
-
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        textSize = 36f
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        setShadowLayer(8f, 0f, 4f, Color.parseColor("#99000000"))
+        pathEffect = CornerPathEffect(65f)
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -49,36 +41,26 @@ class PieMenuView(
 
     init {
         setLayerType(LAYER_TYPE_SOFTWARE, null)
-        loadPreferences()
+        loadCustomTiles()
     }
 
-    private fun loadPreferences() {
+    private fun loadCustomTiles() {
         val prefs = context.getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
-        val tileCount = prefs.getInt("PREF_TILE_COUNT", 5)
+        // Default order if none is set yet: Back(2), Home(0), App(6), Recents(4), Screenshot(1)
+        val savedOrder = prefs.getString("PREF_TILE_ACTIONS", "2,0,6,4,1") ?: "2,0,6,4,1"
+        val actionIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
+        
         val theme = prefs.getString("PREF_THEME", "Neon") ?: "Neon"
-
         val themeColors = when (theme) {
             "Pastel" -> listOf("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#E8BAFF")
             "Mono" -> listOf("#FFFFFF", "#CCCCCC", "#A3A3A3", "#7A7A7A", "#525252", "#292929")
-            else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081") 
+            else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081")
         }
 
-        // ADDED THE APP TILE (ID: 6) to the rotation list
-        val availableActions = listOf(
-            Triple("Back", 2, 2),        
-            Triple("Home", 0, 0),        
-            Triple("App", 6, 6),         // <--- New App Opening Option
-            Triple("Recents", 4, 4),     
-            Triple("Screen", 1, 1),      
-            Triple("Volume", 3, 3),      
-            Triple("Notifs", 5, 5)       
-        )
-
         slices.clear()
-        for (i in 0 until tileCount) {
-            val action = availableActions[i % availableActions.size]
-            val color = Color.parseColor(themeColors[i % themeColors.size])
-            slices.add(Slice(action.first, color, action.second))
+        actionIds.forEachIndexed { index, actionId ->
+            val color = Color.parseColor(themeColors[index % themeColors.size])
+            slices.add(Slice(color, actionId))
         }
     }
 
@@ -88,8 +70,8 @@ class PieMenuView(
         activeSlice = -1
 
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 350 
-            interpolator = OvershootInterpolator(1.6f) 
+            duration = 350
+            interpolator = OvershootInterpolator(1.6f)
             addUpdateListener {
                 animProgress = it.animatedValue as Float
                 invalidate()
@@ -110,9 +92,9 @@ class PieMenuView(
 
         val baseInnerR = 140f * animProgress
         val baseOuterR = 410f * animProgress
-        val totalSpan = 165f 
-        val gapAngle = 7f    
-        val sweepAngle = totalSpan / slices.size.toFloat() 
+        val totalSpan = 165f
+        val gapAngle = 7f
+        val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
             val isSelected = (i == activeSlice)
@@ -135,7 +117,7 @@ class PieMenuView(
             fillPaint.color = slice.color
             if (isSelected) {
                 fillPaint.alpha = 255
-                fillPaint.setShadowLayer(30f, 0f, 0f, slice.color) 
+                fillPaint.setShadowLayer(30f, 0f, 0f, slice.color)
             } else {
                 fillPaint.alpha = (210 * animProgress.coerceIn(0f, 1f)).toInt()
                 fillPaint.clearShadowLayer()
@@ -148,15 +130,15 @@ class PieMenuView(
             val cx = (startX + centerR * cos(midAngle).toFloat())
             val cy = (startY + centerR * sin(midAngle).toFloat())
 
-            val scale = if (isSelected) 1.15f else 1f
+            val scale = if (isSelected) 1.25f else 1.1f // Slightly larger icons since text is gone
             canvas.save()
             canvas.scale(scale, scale, cx, cy)
             
-            drawSliceIcon(canvas, slice.id, cx, cy - 20f)
-            canvas.drawText(slice.title, cx, cy + 46f, textPaint)
+            // Icon is now perfectly centered (cy) instead of offset (cy - 20)
+            drawSliceIcon(canvas, slice.id, cx, cy)
             canvas.restore()
         }
-        canvas.restore() 
+        canvas.restore()
 
         val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#40FFFFFF") }
         val anchorRect = RectF(startX - 20f, startY - 90f, startX + 15f, startY + 90f)
@@ -182,17 +164,17 @@ class PieMenuView(
                 canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx + 8f, cy - 12f, cx + 24f, cy + 12f), -45f, 90f, false, iconPaint)
             }
-            4 -> { // Recents 
+            4 -> { // Recents
                 canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx + 8f, cy + 8f), 4f, 4f, iconPaint)
                 val path = Path().apply { moveTo(cx - 6f, cy + 16f); lineTo(cx + 16f, cy + 16f); lineTo(cx + 16f, cy - 6f) }
                 canvas.drawPath(path, iconPaint)
             }
-            5 -> { // Notifications 
+            5 -> { // Notifications
                 val path = Path().apply { moveTo(cx, cy - 16f); arcTo(RectF(cx - 12f, cy - 16f, cx + 12f, cy + 8f), 180f, 180f); lineTo(cx + 18f, cy + 12f); lineTo(cx - 18f, cy + 12f); close() }
                 canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx - 6f, cy + 12f, cx + 6f, cy + 24f), 0f, 180f, false, iconPaint)
             }
-            6 -> { // App Opening (4-Square Grid Icon)
+            6 -> { // App Opening
                 val appPaint = Paint(iconPaint).apply { style = Paint.Style.FILL }
                 canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx - 4f, cy - 4f), 4f, 4f, appPaint)
                 canvas.drawRoundRect(RectF(cx + 4f, cy - 16f, cx + 16f, cy - 4f), 4f, 4f, appPaint)
@@ -220,7 +202,7 @@ class PieMenuView(
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
                             triggerHaptic()
-                            invalidate() 
+                            invalidate()
                         }
                     } else {
                         if (activeSlice != -1) {
@@ -246,5 +228,5 @@ class PieMenuView(
         try { vibrator?.vibrate(VibrationEffect.createOneShot(18L, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
     }
 
-    data class Slice(val title: String, val color: Int, val id: Int)
+    data class Slice(val color: Int, val id: Int)
 }
