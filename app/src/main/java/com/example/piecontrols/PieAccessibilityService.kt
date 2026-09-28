@@ -3,6 +3,7 @@ package com.example.piecontrols
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -15,35 +16,30 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 
-class PieAccessibilityService : AccessibilityService() {
+class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnSharedPreferenceChangeListener {
 
     private lateinit var windowManager: WindowManager
     private lateinit var edgeHandle: View
+    private lateinit var prefs: SharedPreferences
     private var pieOverlay: PieMenuView? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        prefs = getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(this)
         setupEdgeHandle()
     }
 
     private fun setupEdgeHandle() {
         edgeHandle = View(this).apply {
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#40FFFFFF")) 
+                setColor(Color.parseColor("#40FFFFFF"))
                 cornerRadii = floatArrayOf(45f, 45f, 0f, 0f, 0f, 0f, 45f, 45f)
             }
         }
 
-        val params = WindowManager.LayoutParams(
-            55, 
-            750, 
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        }
+        val params = getEdgeParams()
 
         edgeHandle.setOnTouchListener { _, event ->
             when (event.action) {
@@ -68,25 +64,44 @@ class PieAccessibilityService : AccessibilityService() {
         windowManager.addView(edgeHandle, params)
     }
 
+    private fun getEdgeParams(): WindowManager.LayoutParams {
+        val barHeight = prefs.getInt("PREF_BAR_HEIGHT", 750)
+        val barPos = prefs.getInt("PREF_BAR_POS", 0) // Y-offset from center
+
+        return WindowManager.LayoutParams(
+            55,
+            barHeight,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            y = barPos
+        }
+    }
+
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+        if (key == "PREF_BAR_HEIGHT" || key == "PREF_BAR_POS") {
+            if (::edgeHandle.isInitialized) {
+                windowManager.updateViewLayout(edgeHandle, getEdgeParams())
+            }
+        }
+    }
+
     private fun showPieOverlay(x: Float, y: Float) {
         if (pieOverlay != null) return
-
         pieOverlay = PieMenuView(
             context = this,
             onActionSelected = { actionId -> executeAction(actionId) },
             onDismiss = { hidePieOverlay() }
-        ).apply {
-            setOrigin(x, y)
-        }
+        ).apply { setOrigin(x, y) }
 
         val overlayParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         )
-
         windowManager.addView(pieOverlay, overlayParams)
     }
 
@@ -109,22 +124,17 @@ class PieAccessibilityService : AccessibilityService() {
             4 -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             6 -> {
-                // APP OPENING LOGIC
                 try {
-                    // NOTE: You can change "com.google.android.youtube" to any app package (e.g. "com.whatsapp")
                     val intent = packageManager.getLaunchIntentForPackage("com.google.android.youtube")
                     if (intent != null) {
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         startActivity(intent)
                     } else {
-                        // Fallback: Opens Settings if the app is not installed
                         val fallback = Intent(android.provider.Settings.ACTION_SETTINGS)
                         fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         startActivity(fallback)
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+                } catch (e: Exception) { e.printStackTrace() }
             }
         }
     }
@@ -133,6 +143,7 @@ class PieAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
     override fun onDestroy() {
         super.onDestroy()
+        prefs.unregisterOnSharedPreferenceChangeListener(this)
         if (::edgeHandle.isInitialized) windowManager.removeView(edgeHandle)
         hidePieOverlay()
     }
