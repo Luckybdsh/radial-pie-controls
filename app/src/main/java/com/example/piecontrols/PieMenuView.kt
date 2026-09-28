@@ -26,17 +26,35 @@ class PieMenuView(
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
+    // BASE PAINT (The gradient shader will be applied dynamically per slice)
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        pathEffect = CornerPathEffect(65f)
+        pathEffect = CornerPathEffect(40f) // Keeps inner corners sharp, outer edges soft
+    }
+
+    // GLASS BORDER (Thin semi-transparent stroke)
+    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        pathEffect = CornerPathEffect(40f)
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.STROKE
-        strokeWidth = 7f
+        strokeWidth = 6f
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
+    }
+
+    // CURVED TEXT PAINT
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 24f
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        letterSpacing = 0.05f
+        setShadowLayer(6f, 0f, 2f, Color.argb(150, 0, 0, 0))
     }
 
     private val bgDimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
@@ -46,7 +64,6 @@ class PieMenuView(
         loadCustomTiles()
     }
 
-    // Convert Android Drawable to Bitmap for Canvas drawing
     private fun getAppIconBitmap(pkgName: String): Bitmap? {
         return try {
             val drawable: Drawable = context.packageManager.getApplicationIcon(pkgName)
@@ -55,9 +72,7 @@ class PieMenuView(
             drawable.setBounds(0, 0, canvas.width, canvas.height)
             drawable.draw(canvas)
             bitmap
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     private fun loadCustomTiles() {
@@ -72,20 +87,21 @@ class PieMenuView(
             else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081")
         }
 
-        // Fetch custom app icon if it's in the layout
+        val allActions = mapOf(
+            0 to "HOME", 1 to "SCREENSHOT", 2 to "BACK",
+            3 to "VOLUME", 4 to "RECENTS", 5 to "NOTIFS", 6 to "APP"
+        )
+
         val customPkg = prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube") ?: "com.google.android.youtube"
         var customAppBitmap: Bitmap? = null
-        if (actionIds.contains(6)) {
-            customAppBitmap = getAppIconBitmap(customPkg)
-        }
+        if (actionIds.contains(6)) customAppBitmap = getAppIconBitmap(customPkg)
 
         slices.clear()
         actionIds.forEachIndexed { index, actionId ->
             val color = Color.parseColor(themeColors[index % themeColors.size])
-            val slice = Slice(color, actionId)
-            if (actionId == 6 && customAppBitmap != null) {
-                slice.customIcon = customAppBitmap
-            }
+            val name = allActions[actionId] ?: "APP"
+            val slice = Slice(name, color, actionId)
+            if (actionId == 6 && customAppBitmap != null) slice.customIcon = customAppBitmap
             slices.add(slice)
         }
     }
@@ -95,9 +111,13 @@ class PieMenuView(
         startY = y
         activeSlice = -1
 
+        // HAPTIC: Initial pop when menu opens
+        triggerHaptic(25L)
+
+        // SPRING PHYSICS: Longer duration with high tension overshoot
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 350
-            interpolator = OvershootInterpolator(1.6f)
+            duration = 450
+            interpolator = OvershootInterpolator(1.2f)
             addUpdateListener {
                 animProgress = it.animatedValue as Float
                 invalidate()
@@ -106,62 +126,106 @@ class PieMenuView(
         }
     }
 
+    // Adjusts alpha of a hex color for the Glassmorphism effect
+    private fun adjustAlpha(color: Int, factor: Float): Int {
+        val alpha = (Color.alpha(color) * factor).roundToInt().coerceIn(0, 255)
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (animProgress <= 0f) return
 
-        bgDimPaint.alpha = (110 * animProgress.coerceIn(0f, 1f)).toInt()
+        bgDimPaint.alpha = (120 * animProgress.coerceIn(0f, 1f)).toInt()
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgDimPaint)
 
         canvas.save()
-        canvas.rotate(-75f * (1f - animProgress), startX, startY)
+        canvas.rotate(-45f * (1f - animProgress.coerceIn(0f, 1f)), startX, startY)
 
-        val baseInnerR = 140f * animProgress
-        val baseOuterR = 410f * animProgress
         val totalSpan = 165f
-        val gapAngle = 7f
+        val gapAngle = 8f 
         val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
+            
+            // STAGGERED ENTRY: Each slice is delayed slightly based on its index
+            val staggerOffset = (slices.size - 1 - i) * 0.05f 
+            val sliceProgress = (animProgress - staggerOffset).coerceAtLeast(0f)
+            if (sliceProgress <= 0f) return@forEachIndexed
+
             val isSelected = (i == activeSlice)
             
-            val currentOuterR = if (isSelected) baseOuterR + 45f else baseOuterR
+            // ACTIVE SCALING: Slices pop outward and grow when hovered
+            val baseInnerR = 140f * sliceProgress
+            val baseOuterR = 390f * sliceProgress 
+            
+            val currentOuterR = if (isSelected) baseOuterR + 55f else baseOuterR
             val currentInnerR = if (isSelected) baseInnerR - 15f else baseInnerR
 
             val startAngle = 100f + (i.toFloat() * sweepAngle)
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
+            val endAngle = actualStart + actualSweep
 
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
-            val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
 
-            path.arcTo(outerRect, actualStart, actualSweep)
-            path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
-            path.close()
-
-            fillPaint.color = slice.color
-            if (isSelected) {
-                fillPaint.alpha = 255
-                fillPaint.setShadowLayer(30f, 0f, 0f, slice.color)
-            } else {
-                fillPaint.alpha = (210 * animProgress.coerceIn(0f, 1f)).toInt()
-                fillPaint.clearShadowLayer()
-            }
-            
-            canvas.drawPath(path, fillPaint)
+            // Geometry Setup
+            path.arcTo(innerRect, actualStart, actualSweep)
+            val outerEndX = startX + currentOuterR * cos(Math.toRadians(endAngle.toDouble())).toFloat()
+            val outerEndY = startY + currentOuterR * sin(Math.toRadians(endAngle.toDouble())).toFloat()
+            path.lineTo(outerEndX, outerEndY)
 
             val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
-            val centerR = (currentInnerR + currentOuterR) / 2f
-            val cx = (startX + centerR * cos(midAngle).toFloat())
-            val cy = (startY + centerR * sin(midAngle).toFloat())
+            val bulgeR = currentOuterR + 35f 
+            val controlX = startX + bulgeR * cos(midAngle).toFloat()
+            val controlY = startY + bulgeR * sin(midAngle).toFloat()
 
-            val scale = if (isSelected) 1.25f else 1.1f
+            val outerStartX = startX + currentOuterR * cos(Math.toRadians(actualStart.toDouble())).toFloat()
+            val outerStartY = startY + currentOuterR * sin(Math.toRadians(actualStart.toDouble())).toFloat()
+
+            path.quadTo(controlX, controlY, outerStartX, outerStartY)
+            path.close()
+
+            // GLASSMORPHISM GRADIANT & STROKE
+            val startColor = adjustAlpha(slice.color, if (isSelected) 0.85f else 0.25f)
+            val endColor = adjustAlpha(slice.color, if (isSelected) 0.35f else 0.05f)
+            
+            fillPaint.shader = RadialGradient(
+                startX, startY, currentOuterR + 40f,
+                intArrayOf(startColor, endColor),
+                floatArrayOf(0.3f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            
+            borderPaint.color = adjustAlpha(Color.WHITE, if (isSelected) 0.6f else 0.15f)
+
+            canvas.drawPath(path, fillPaint)
+            canvas.drawPath(path, borderPaint) // Draw glass border
+
+            // ICON POSITIONING
+            val iconR = currentInnerR + (currentOuterR - currentInnerR) * 0.45f
+            val cx = (startX + iconR * cos(midAngle).toFloat())
+            val cy = (startY + iconR * sin(midAngle).toFloat())
+
+            val scale = if (isSelected) 1.2f else 1.0f
             canvas.save()
             canvas.scale(scale, scale, cx, cy)
-            
             drawSliceIcon(canvas, slice, cx, cy)
             canvas.restore()
+
+            // CURVED TYPOGRAPHY
+            val textPath = Path()
+            val textR = currentInnerR + (currentOuterR - currentInnerR) * 0.85f // Pushed near outer edge
+            val textRect = RectF(startX - textR, startY - textR, startX + textR, startY + textR)
+            
+            textPath.addArc(textRect, actualStart, actualSweep)
+            
+            textPaint.color = adjustAlpha(Color.WHITE, if (isSelected) 1.0f else 0.6f)
+            textPaint.textSize = if (isSelected) 26f else 22f
+            
+            // Draws text perfectly curved along the arc of the slice
+            canvas.drawTextOnPath(slice.title, textPath, 0f, 10f, textPaint)
         }
         canvas.restore()
 
@@ -171,49 +235,46 @@ class PieMenuView(
     }
 
     private fun drawSliceIcon(canvas: Canvas, slice: Slice, cx: Float, cy: Float) {
-        
-        // DRAW CUSTOM APP ICON IF IT EXISTS
         if (slice.id == 6 && slice.customIcon != null) {
             val bmp = slice.customIcon!!
-            // Offset by half width/height to center it perfectly
             canvas.drawBitmap(bmp, cx - (bmp.width / 2f), cy - (bmp.height / 2f), null)
             return
         }
 
         when (slice.id) {
-            0 -> { // Home
-                val path = Path().apply { moveTo(cx - 24f, cy + 2f); lineTo(cx, cy - 20f); lineTo(cx + 24f, cy + 2f); lineTo(cx + 17f, cy + 2f); lineTo(cx + 17f, cy + 22f); lineTo(cx - 17f, cy + 22f); lineTo(cx - 17f, cy + 2f); close() }
+            0 -> { 
+                val path = Path().apply { moveTo(cx - 20f, cy + 2f); lineTo(cx, cy - 18f); lineTo(cx + 20f, cy + 2f); lineTo(cx + 14f, cy + 2f); lineTo(cx + 14f, cy + 20f); lineTo(cx - 14f, cy + 20f); lineTo(cx - 14f, cy + 2f); close() }
                 canvas.drawPath(path, iconPaint)
             }
-            1 -> { // Screenshot
-                canvas.drawRoundRect(RectF(cx - 24f, cy - 18f, cx + 24f, cy + 18f), 8f, 8f, iconPaint)
-                canvas.drawCircle(cx, cy, 7f, iconPaint)
+            1 -> { 
+                canvas.drawRoundRect(RectF(cx - 20f, cy - 16f, cx + 20f, cy + 16f), 6f, 6f, iconPaint)
+                canvas.drawCircle(cx, cy, 6f, iconPaint)
             }
-            2 -> { // Back
-                val path = Path().apply { moveTo(cx + 10f, cy - 20f); lineTo(cx - 10f, cy); lineTo(cx + 10f, cy + 20f) }
+            2 -> { 
+                val path = Path().apply { moveTo(cx + 8f, cy - 18f); lineTo(cx - 10f, cy); lineTo(cx + 8f, cy + 18f) }
                 canvas.drawPath(path, iconPaint)
             }
-            3 -> { // Volume
-                val path = Path().apply { moveTo(cx - 16f, cy - 8f); lineTo(cx - 6f, cy - 8f); lineTo(cx + 10f, cy - 18f); lineTo(cx + 10f, cy + 18f); lineTo(cx - 6f, cy + 8f); lineTo(cx - 16f, cy + 8f); close() }
+            3 -> { 
+                val path = Path().apply { moveTo(cx - 14f, cy - 6f); lineTo(cx - 6f, cy - 6f); lineTo(cx + 8f, cy - 16f); lineTo(cx + 8f, cy + 16f); lineTo(cx - 6f, cy + 6f); lineTo(cx - 14f, cy + 6f); close() }
                 canvas.drawPath(path, iconPaint)
-                canvas.drawArc(RectF(cx + 8f, cy - 12f, cx + 24f, cy + 12f), -45f, 90f, false, iconPaint)
+                canvas.drawArc(RectF(cx + 6f, cy - 10f, cx + 20f, cy + 10f), -45f, 90f, false, iconPaint)
             }
-            4 -> { // Recents
-                canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx + 8f, cy + 8f), 4f, 4f, iconPaint)
-                val path = Path().apply { moveTo(cx - 6f, cy + 16f); lineTo(cx + 16f, cy + 16f); lineTo(cx + 16f, cy - 6f) }
+            4 -> { 
+                canvas.drawRoundRect(RectF(cx - 14f, cy - 14f, cx + 6f, cy + 6f), 4f, 4f, iconPaint)
+                val path = Path().apply { moveTo(cx - 4f, cy + 14f); lineTo(cx + 14f, cy + 14f); lineTo(cx + 14f, cy - 4f) }
                 canvas.drawPath(path, iconPaint)
             }
-            5 -> { // Notifications
-                val path = Path().apply { moveTo(cx, cy - 16f); arcTo(RectF(cx - 12f, cy - 16f, cx + 12f, cy + 8f), 180f, 180f); lineTo(cx + 18f, cy + 12f); lineTo(cx - 18f, cy + 12f); close() }
+            5 -> { 
+                val path = Path().apply { moveTo(cx, cy - 14f); arcTo(RectF(cx - 10f, cy - 14f, cx + 10f, cy + 6f), 180f, 180f); lineTo(cx + 16f, cy + 10f); lineTo(cx - 16f, cy + 10f); close() }
                 canvas.drawPath(path, iconPaint)
-                canvas.drawArc(RectF(cx - 6f, cy + 12f, cx + 6f, cy + 24f), 0f, 180f, false, iconPaint)
+                canvas.drawArc(RectF(cx - 5f, cy + 10f, cx + 5f, cy + 20f), 0f, 180f, false, iconPaint)
             }
-            6 -> { // Fallback App Opening Icon (if icon fails to load)
+            6 -> { 
                 val appPaint = Paint(iconPaint).apply { style = Paint.Style.FILL }
-                canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx - 4f, cy - 4f), 4f, 4f, appPaint)
-                canvas.drawRoundRect(RectF(cx + 4f, cy - 16f, cx + 16f, cy - 4f), 4f, 4f, appPaint)
-                canvas.drawRoundRect(RectF(cx - 16f, cy + 4f, cx - 4f, cy + 16f), 4f, 4f, appPaint)
-                canvas.drawRoundRect(RectF(cx + 4f, cy + 4f, cx + 16f, cy + 16f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx - 14f, cy - 14f, cx - 4f, cy - 4f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx + 4f, cy - 14f, cx + 14f, cy - 4f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx - 14f, cy + 4f, cx - 4f, cy + 14f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx + 4f, cy + 4f, cx + 14f, cy + 14f), 4f, 4f, appPaint)
             }
         }
     }
@@ -235,7 +296,8 @@ class PieMenuView(
                         val sliceIndex = (normalized / (165.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
-                            triggerHaptic()
+                            // HAPTIC: Subtle tactile tick crossing slice boundaries
+                            triggerHaptic(12L) 
                             invalidate()
                         }
                     } else {
@@ -248,7 +310,7 @@ class PieMenuView(
             }
             MotionEvent.ACTION_UP -> {
                 if (activeSlice != -1) {
-                    triggerHaptic()
+                    triggerHaptic(18L)
                     onActionSelected(slices[activeSlice].id)
                 }
                 onDismiss()
@@ -258,9 +320,9 @@ class PieMenuView(
         return true
     }
 
-    private fun triggerHaptic() {
-        try { vibrator?.vibrate(VibrationEffect.createOneShot(18L, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
+    private fun triggerHaptic(duration: Long) {
+        try { vibrator?.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
     }
 
-    data class Slice(val color: Int, val id: Int, var customIcon: Bitmap? = null)
+    data class Slice(val title: String, val color: Int, val id: Int, var customIcon: Bitmap? = null)
 }
