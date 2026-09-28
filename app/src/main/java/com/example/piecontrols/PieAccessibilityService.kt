@@ -31,7 +31,6 @@ class PieAccessibilityService : AccessibilityService() {
         edgeHandle = View(this).apply {
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#40FFFFFF")) // Frosted translucent white
-                // Curves the Top-Left and Bottom-Left corners, leaves right side flat against edge
                 cornerRadii = floatArrayOf(
                     45f, 45f, // Top-Left
                     0f, 0f,   // Top-Right
@@ -42,8 +41,8 @@ class PieAccessibilityService : AccessibilityService() {
         }
 
         val params = WindowManager.LayoutParams(
-            55, // Slightly wider to show off the curve
-            750, // Height of the trigger bar
+            55, 
+            750, 
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -68,7 +67,6 @@ class PieAccessibilityService : AccessibilityService() {
         // 2. Disable system "Back" gesture over the trigger area
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             edgeHandle.addOnLayoutChangeListener { v, left, top, right, bottom, _, _, _, _ ->
-                // Tells Android to exclude this specific rectangle from system gestures
                 v.systemGestureExclusionRects = listOf(Rect(0, 0, right - left, bottom - top))
             }
         }
@@ -105,7 +103,7 @@ class PieAccessibilityService : AccessibilityService() {
         }
     }
 
-        private fun executeAction(id: Int) {
+    private fun executeAction(id: Int) {
         when (id) {
             0 -> performGlobalAction(GLOBAL_ACTION_HOME)
             1 -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
@@ -114,11 +112,9 @@ class PieAccessibilityService : AccessibilityService() {
                 val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
             }
-            4 -> performGlobalAction(GLOBAL_ACTION_RECENTS) // Added Recents
-            5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) // Added Notifications
+            4 -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
         }
-    }
-
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
