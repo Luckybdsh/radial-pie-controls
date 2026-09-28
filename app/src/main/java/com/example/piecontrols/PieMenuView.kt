@@ -2,7 +2,6 @@ package com.example.piecontrols
 
 import android.animation.ValueAnimator
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.*
 import android.graphics.drawable.Drawable
 import android.os.VibrationEffect
@@ -23,20 +22,20 @@ class PieMenuView(
     private var startX = 0f
     private var startY = 0f
     private var animProgress = 0f
+    
+    private var visualTheme = "Neon"
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
-    // BASE PAINT (The gradient shader will be applied dynamically per slice)
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        pathEffect = CornerPathEffect(40f) // Keeps inner corners sharp, outer edges soft
+        pathEffect = CornerPathEffect(15f) // Reduced greatly to preserve traditional pie slice shape
     }
 
-    // GLASS BORDER (Thin semi-transparent stroke)
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 3f
-        pathEffect = CornerPathEffect(40f)
+        pathEffect = CornerPathEffect(15f)
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -47,13 +46,11 @@ class PieMenuView(
         strokeJoin = Paint.Join.ROUND
     }
 
-    // CURVED TEXT PAINT
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 24f
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        letterSpacing = 0.05f
         setShadowLayer(6f, 0f, 2f, Color.argb(150, 0, 0, 0))
     }
 
@@ -77,15 +74,12 @@ class PieMenuView(
 
     private fun loadCustomTiles() {
         val prefs = context.getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
+        visualTheme = prefs.getString("PREF_VISUAL_STYLE", "Neon") ?: "Neon"
+        
         val savedOrder = prefs.getString("PREF_TILE_ACTIONS", "2,0,6,4,1") ?: "2,0,6,4,1"
         val actionIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
         
-        val theme = prefs.getString("PREF_THEME", "Neon") ?: "Neon"
-        val themeColors = when (theme) {
-            "Pastel" -> listOf("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#E8BAFF")
-            "Mono" -> listOf("#FFFFFF", "#CCCCCC", "#A3A3A3", "#7A7A7A", "#525252", "#292929")
-            else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081")
-        }
+        val themeColors = listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081")
 
         val allActions = mapOf(
             0 to "HOME", 1 to "SCREENSHOT", 2 to "BACK",
@@ -111,10 +105,8 @@ class PieMenuView(
         startY = y
         activeSlice = -1
 
-        // HAPTIC: Initial pop when menu opens
         triggerHaptic(25L)
 
-        // SPRING PHYSICS: Longer duration with high tension overshoot
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 450
             interpolator = OvershootInterpolator(1.2f)
@@ -126,7 +118,6 @@ class PieMenuView(
         }
     }
 
-    // Adjusts alpha of a hex color for the Glassmorphism effect
     private fun adjustAlpha(color: Int, factor: Float): Int {
         val alpha = (Color.alpha(color) * factor).roundToInt().coerceIn(0, 255)
         return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
@@ -143,67 +134,70 @@ class PieMenuView(
         canvas.rotate(-45f * (1f - animProgress.coerceIn(0f, 1f)), startX, startY)
 
         val totalSpan = 165f
-        val gapAngle = 8f 
+        val gapAngle = 4f // Reduced gap for a tighter standard pie look
         val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
-            
-            // STAGGERED ENTRY: Each slice is delayed slightly based on its index
             val staggerOffset = (slices.size - 1 - i) * 0.05f 
             val sliceProgress = (animProgress - staggerOffset).coerceAtLeast(0f)
             if (sliceProgress <= 0f) return@forEachIndexed
 
             val isSelected = (i == activeSlice)
             
-            // ACTIVE SCALING: Slices pop outward and grow when hovered
             val baseInnerR = 140f * sliceProgress
-            val baseOuterR = 390f * sliceProgress 
+            val baseOuterR = 410f * sliceProgress 
             
-            val currentOuterR = if (isSelected) baseOuterR + 55f else baseOuterR
+            val currentOuterR = if (isSelected) baseOuterR + 40f else baseOuterR
             val currentInnerR = if (isSelected) baseInnerR - 15f else baseInnerR
 
             val startAngle = 100f + (i.toFloat() * sweepAngle)
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
-            val endAngle = actualStart + actualSweep
 
+            // CLASSIC PIE SLICE GEOMETRY (No bezier curves)
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
+            val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
 
-            // Geometry Setup
-            path.arcTo(innerRect, actualStart, actualSweep)
-            val outerEndX = startX + currentOuterR * cos(Math.toRadians(endAngle.toDouble())).toFloat()
-            val outerEndY = startY + currentOuterR * sin(Math.toRadians(endAngle.toDouble())).toFloat()
-            path.lineTo(outerEndX, outerEndY)
-
-            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
-            val bulgeR = currentOuterR + 35f 
-            val controlX = startX + bulgeR * cos(midAngle).toFloat()
-            val controlY = startY + bulgeR * sin(midAngle).toFloat()
-
-            val outerStartX = startX + currentOuterR * cos(Math.toRadians(actualStart.toDouble())).toFloat()
-            val outerStartY = startY + currentOuterR * sin(Math.toRadians(actualStart.toDouble())).toFloat()
-
-            path.quadTo(controlX, controlY, outerStartX, outerStartY)
+            path.arcTo(outerRect, actualStart, actualSweep)
+            path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
             path.close()
 
-            // GLASSMORPHISM GRADIANT & STROKE
-            val startColor = adjustAlpha(slice.color, if (isSelected) 0.85f else 0.25f)
-            val endColor = adjustAlpha(slice.color, if (isSelected) 0.35f else 0.05f)
-            
-            fillPaint.shader = RadialGradient(
-                startX, startY, currentOuterR + 40f,
-                intArrayOf(startColor, endColor),
-                floatArrayOf(0.3f, 1f),
-                Shader.TileMode.CLAMP
-            )
-            
-            borderPaint.color = adjustAlpha(Color.WHITE, if (isSelected) 0.6f else 0.15f)
+            // APPLY THE SELECTED THEME
+            fillPaint.shader = null
+            fillPaint.clearShadowLayer()
+            borderPaint.color = Color.TRANSPARENT
+
+            when (visualTheme) {
+                "Simple" -> {
+                    fillPaint.color = slice.color
+                    fillPaint.alpha = if (isSelected) 255 else 180
+                }
+                "Neon" -> {
+                    fillPaint.color = slice.color
+                    fillPaint.alpha = if (isSelected) 255 else 180
+                    if (isSelected) {
+                        fillPaint.setShadowLayer(40f, 0f, 0f, slice.color)
+                    }
+                }
+                "Glass" -> {
+                    val startColor = adjustAlpha(slice.color, if (isSelected) 0.85f else 0.25f)
+                    val endColor = adjustAlpha(slice.color, if (isSelected) 0.35f else 0.05f)
+                    fillPaint.shader = RadialGradient(
+                        startX, startY, currentOuterR,
+                        intArrayOf(startColor, endColor),
+                        floatArrayOf(0.3f, 1f),
+                        Shader.TileMode.CLAMP
+                    )
+                    borderPaint.color = adjustAlpha(Color.WHITE, if (isSelected) 0.6f else 0.15f)
+                }
+            }
 
             canvas.drawPath(path, fillPaint)
-            canvas.drawPath(path, borderPaint) // Draw glass border
+            if (visualTheme == "Glass") canvas.drawPath(path, borderPaint)
 
-            // ICON POSITIONING
+            // ICON & TEXT POSITIONING
+            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
             val iconR = currentInnerR + (currentOuterR - currentInnerR) * 0.45f
             val cx = (startX + iconR * cos(midAngle).toFloat())
             val cy = (startY + iconR * sin(midAngle).toFloat())
@@ -214,18 +208,14 @@ class PieMenuView(
             drawSliceIcon(canvas, slice, cx, cy)
             canvas.restore()
 
-            // CURVED TYPOGRAPHY
-            val textPath = Path()
-            val textR = currentInnerR + (currentOuterR - currentInnerR) * 0.85f // Pushed near outer edge
-            val textRect = RectF(startX - textR, startY - textR, startX + textR, startY + textR)
-            
-            textPath.addArc(textRect, actualStart, actualSweep)
+            // Standard flat typography positioned below the icon
+            val textR = currentInnerR + (currentOuterR - currentInnerR) * 0.85f
+            val textX = (startX + textR * cos(midAngle).toFloat())
+            val textY = (startY + textR * sin(midAngle).toFloat())
             
             textPaint.color = adjustAlpha(Color.WHITE, if (isSelected) 1.0f else 0.6f)
-            textPaint.textSize = if (isSelected) 26f else 22f
-            
-            // Draws text perfectly curved along the arc of the slice
-            canvas.drawTextOnPath(slice.title, textPath, 0f, 10f, textPaint)
+            textPaint.textSize = if (isSelected) 22f else 18f
+            canvas.drawText(slice.title, textX, textY, textPaint)
         }
         canvas.restore()
 
@@ -296,7 +286,6 @@ class PieMenuView(
                         val sliceIndex = (normalized / (165.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
-                            // HAPTIC: Subtle tactile tick crossing slice boundaries
                             triggerHaptic(12L) 
                             invalidate()
                         }
