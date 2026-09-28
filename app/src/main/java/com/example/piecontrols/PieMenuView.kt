@@ -2,7 +2,9 @@ package com.example.piecontrols
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.*
+import android.graphics.drawable.Drawable
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.MotionEvent
@@ -44,9 +46,22 @@ class PieMenuView(
         loadCustomTiles()
     }
 
+    // Convert Android Drawable to Bitmap for Canvas drawing
+    private fun getAppIconBitmap(pkgName: String): Bitmap? {
+        return try {
+            val drawable: Drawable = context.packageManager.getApplicationIcon(pkgName)
+            val bitmap = Bitmap.createBitmap(72, 72, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun loadCustomTiles() {
         val prefs = context.getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
-        // Default order if none is set yet: Back(2), Home(0), App(6), Recents(4), Screenshot(1)
         val savedOrder = prefs.getString("PREF_TILE_ACTIONS", "2,0,6,4,1") ?: "2,0,6,4,1"
         val actionIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
         
@@ -57,10 +72,21 @@ class PieMenuView(
             else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081")
         }
 
+        // Fetch custom app icon if it's in the layout
+        val customPkg = prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube") ?: "com.google.android.youtube"
+        var customAppBitmap: Bitmap? = null
+        if (actionIds.contains(6)) {
+            customAppBitmap = getAppIconBitmap(customPkg)
+        }
+
         slices.clear()
         actionIds.forEachIndexed { index, actionId ->
             val color = Color.parseColor(themeColors[index % themeColors.size])
-            slices.add(Slice(color, actionId))
+            val slice = Slice(color, actionId)
+            if (actionId == 6 && customAppBitmap != null) {
+                slice.customIcon = customAppBitmap
+            }
+            slices.add(slice)
         }
     }
 
@@ -130,12 +156,11 @@ class PieMenuView(
             val cx = (startX + centerR * cos(midAngle).toFloat())
             val cy = (startY + centerR * sin(midAngle).toFloat())
 
-            val scale = if (isSelected) 1.25f else 1.1f // Slightly larger icons since text is gone
+            val scale = if (isSelected) 1.25f else 1.1f
             canvas.save()
             canvas.scale(scale, scale, cx, cy)
             
-            // Icon is now perfectly centered (cy) instead of offset (cy - 20)
-            drawSliceIcon(canvas, slice.id, cx, cy)
+            drawSliceIcon(canvas, slice, cx, cy)
             canvas.restore()
         }
         canvas.restore()
@@ -145,8 +170,17 @@ class PieMenuView(
         canvas.drawRoundRect(anchorRect, 30f, 30f, anchorPaint)
     }
 
-    private fun drawSliceIcon(canvas: Canvas, id: Int, cx: Float, cy: Float) {
-        when (id) {
+    private fun drawSliceIcon(canvas: Canvas, slice: Slice, cx: Float, cy: Float) {
+        
+        // DRAW CUSTOM APP ICON IF IT EXISTS
+        if (slice.id == 6 && slice.customIcon != null) {
+            val bmp = slice.customIcon!!
+            // Offset by half width/height to center it perfectly
+            canvas.drawBitmap(bmp, cx - (bmp.width / 2f), cy - (bmp.height / 2f), null)
+            return
+        }
+
+        when (slice.id) {
             0 -> { // Home
                 val path = Path().apply { moveTo(cx - 24f, cy + 2f); lineTo(cx, cy - 20f); lineTo(cx + 24f, cy + 2f); lineTo(cx + 17f, cy + 2f); lineTo(cx + 17f, cy + 22f); lineTo(cx - 17f, cy + 22f); lineTo(cx - 17f, cy + 2f); close() }
                 canvas.drawPath(path, iconPaint)
@@ -174,7 +208,7 @@ class PieMenuView(
                 canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx - 6f, cy + 12f, cx + 6f, cy + 24f), 0f, 180f, false, iconPaint)
             }
-            6 -> { // App Opening
+            6 -> { // Fallback App Opening Icon (if icon fails to load)
                 val appPaint = Paint(iconPaint).apply { style = Paint.Style.FILL }
                 canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx - 4f, cy - 4f), 4f, 4f, appPaint)
                 canvas.drawRoundRect(RectF(cx + 4f, cy - 16f, cx + 16f, cy - 4f), 4f, 4f, appPaint)
@@ -228,5 +262,5 @@ class PieMenuView(
         try { vibrator?.vibrate(VibrationEffect.createOneShot(18L, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
     }
 
-    data class Slice(val color: Int, val id: Int)
+    data class Slice(val color: Int, val id: Int, var customIcon: Bitmap? = null)
 }
