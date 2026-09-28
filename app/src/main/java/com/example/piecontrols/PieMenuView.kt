@@ -28,8 +28,8 @@ class PieMenuView(
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        // REVERTED to 35f: Keeps inner corners sharp while slightly softening edges
-        pathEffect = CornerPathEffect(35f)
+        // 40f is the sweet spot: keeps inner corners structured but softens the connecting edges
+        pathEffect = CornerPathEffect(40f)
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -116,7 +116,7 @@ class PieMenuView(
         canvas.rotate(-75f * (1f - animProgress), startX, startY)
 
         val baseInnerR = 140f * animProgress
-        val baseOuterR = 390f * animProgress // Slightly reduced to make room for the dome
+        val baseOuterR = 390f * animProgress 
         val totalSpan = 165f
         val gapAngle = 8f 
         val sweepAngle = totalSpan / slices.size.toFloat()
@@ -136,7 +136,7 @@ class PieMenuView(
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
 
-            // 1. Draw Inner Arc (Sharp corners protected by 35f path effect)
+            // 1. Draw Inner Arc 
             path.arcTo(innerRect, actualStart, actualSweep)
 
             // 2. Line connecting to the Outer Right edge
@@ -144,9 +144,9 @@ class PieMenuView(
             val outerEndY = startY + currentOuterR * sin(Math.toRadians(endAngle.toDouble())).toFloat()
             path.lineTo(outerEndX, outerEndY)
 
-            // 3. NEW: Bezier Curve to create a heavily rounded outer "Dome/Petal"
+            // 3. GENTLE BEZIER CURVE: Reduced the bulge from +85f down to +35f for a softer curve
             val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
-            val bulgeR = currentOuterR + 85f // The mathematical bulge that makes the outer curve completely rounded
+            val bulgeR = currentOuterR + 35f 
             val controlX = startX + bulgeR * cos(midAngle).toFloat()
             val controlY = startY + bulgeR * sin(midAngle).toFloat()
 
