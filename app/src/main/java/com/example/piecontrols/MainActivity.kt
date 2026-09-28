@@ -1,10 +1,12 @@
 package com.example.piecontrols
 
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -29,10 +31,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var accessibilityCard: LinearLayout
     private lateinit var statusDot: View
     private lateinit var statusText: TextView
+    private lateinit var selectedAppLabel: TextView
 
     private val allActions = mapOf(
         0 to "Home", 1 to "Screenshot", 2 to "Back",
-        3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open Custom App"
+        3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open App"
     )
 
     data class TileData(val id: Int, val name: String)
@@ -52,20 +55,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         mainLayout.addView(createTopControlPanel())
-
-        // NEW: App Selection Panel
-        mainLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Package Name"))
+        mainLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
         mainLayout.addView(createAppSelectPanel())
-
         mainLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         mainLayout.addView(createSlidersPanel())
-
         mainLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
         mainLayout.addView(createDragDropPanel())
 
         rootScroll.addView(mainLayout)
         setContentView(rootScroll)
-
         loadTiles()
     }
 
@@ -153,29 +151,51 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
         }
         
-        val input = EditText(this).apply {
-            setText(prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube"))
+        val currentAppName = prefs.getString("PREF_CUSTOM_APP_NAME", "YouTube")
+        selectedAppLabel = TextView(this).apply {
+            text = "Selected: $currentAppName"
             setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            hint = "e.g. com.whatsapp"
-            setPadding(32, 32, 32, 32)
-            background = GradientDrawable().apply { setColor(Color.parseColor("#1A1A1E")); cornerRadius = 20f }
+            textSize = 16f
+            setPadding(0, 0, 0, 32)
         }
         
-        val saveBtn = Button(this).apply {
-            text = "Save App Package"
+        val selectBtn = Button(this).apply {
+            text = "Choose App"
             setBackgroundColor(Color.parseColor("#2979FF"))
             setTextColor(Color.WHITE)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 20, 0, 0) }
-            setOnClickListener {
-                prefs.edit().putString("PREF_CUSTOM_APP_PKG", input.text.toString().trim()).apply()
-                Toast.makeText(this@MainActivity, "App shortcut saved!", Toast.LENGTH_SHORT).show()
-            }
+            setOnClickListener { showAppPicker() }
         }
         
-        panel.addView(input)
-        panel.addView(saveBtn)
+        panel.addView(selectedAppLabel)
+        panel.addView(selectBtn)
         return panel
+    }
+
+    private fun showAppPicker() {
+        val pm = packageManager
+        val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+        val resolveInfos = pm.queryIntentActivities(intent, 0)
+        
+        // Map to Pair(AppName, PackageName) and sort alphabetically
+        val appList = resolveInfos.map {
+            Pair(it.loadLabel(pm).toString(), it.activityInfo.packageName)
+        }.sortedBy { it.first }
+
+        val names = appList.map { it.first }.toTypedArray()
+
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Select App")
+            .setItems(names) { _, which ->
+                val selectedName = appList[which].first
+                val selectedPkg = appList[which].second
+                prefs.edit()
+                    .putString("PREF_CUSTOM_APP_NAME", selectedName)
+                    .putString("PREF_CUSTOM_APP_PKG", selectedPkg)
+                    .apply()
+                selectedAppLabel.text = "Selected: $selectedName"
+                Toast.makeText(this, "Saved! Toggle Service to reload icon.", Toast.LENGTH_LONG).show()
+            }
+            .show()
     }
 
     private fun createSectionTitle(title: String, subtitle: String = ""): View {
