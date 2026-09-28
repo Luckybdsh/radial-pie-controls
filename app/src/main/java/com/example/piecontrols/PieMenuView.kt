@@ -28,8 +28,8 @@ class PieMenuView(
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        // INCREASED to 120f: This creates extreme, buttery-smooth rounded outer corners
-        pathEffect = CornerPathEffect(120f)
+        // REVERTED to 35f: Keeps inner corners sharp while slightly softening edges
+        pathEffect = CornerPathEffect(35f)
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -116,11 +116,9 @@ class PieMenuView(
         canvas.rotate(-75f * (1f - animProgress), startX, startY)
 
         val baseInnerR = 140f * animProgress
-        val baseOuterR = 410f * animProgress
+        val baseOuterR = 390f * animProgress // Slightly reduced to make room for the dome
         val totalSpan = 165f
-        
-        // INCREASED GAP: Gives the 120f CornerPathEffect enough room to physically round the edges
-        val gapAngle = 10f 
+        val gapAngle = 8f 
         val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
@@ -132,14 +130,32 @@ class PieMenuView(
             val startAngle = 100f + (i.toFloat() * sweepAngle)
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
+            
+            val endAngle = actualStart + actualSweep
 
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
-            val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
 
-            // Draw the basic slice shape (The path effect will heavily round all 4 corners)
-            path.arcTo(outerRect, actualStart, actualSweep)
-            path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
+            // 1. Draw Inner Arc (Sharp corners protected by 35f path effect)
+            path.arcTo(innerRect, actualStart, actualSweep)
+
+            // 2. Line connecting to the Outer Right edge
+            val outerEndX = startX + currentOuterR * cos(Math.toRadians(endAngle.toDouble())).toFloat()
+            val outerEndY = startY + currentOuterR * sin(Math.toRadians(endAngle.toDouble())).toFloat()
+            path.lineTo(outerEndX, outerEndY)
+
+            // 3. NEW: Bezier Curve to create a heavily rounded outer "Dome/Petal"
+            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
+            val bulgeR = currentOuterR + 85f // The mathematical bulge that makes the outer curve completely rounded
+            val controlX = startX + bulgeR * cos(midAngle).toFloat()
+            val controlY = startY + bulgeR * sin(midAngle).toFloat()
+
+            val outerStartX = startX + currentOuterR * cos(Math.toRadians(actualStart.toDouble())).toFloat()
+            val outerStartY = startY + currentOuterR * sin(Math.toRadians(actualStart.toDouble())).toFloat()
+
+            path.quadTo(controlX, controlY, outerStartX, outerStartY)
+
+            // 4. Close the path back to the inner left edge
             path.close()
 
             fillPaint.color = slice.color
@@ -153,7 +169,6 @@ class PieMenuView(
             
             canvas.drawPath(path, fillPaint)
 
-            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
             val centerR = (currentInnerR + currentOuterR) / 2f
             val cx = (startX + centerR * cos(midAngle).toFloat())
             val cy = (startY + centerR * sin(midAngle).toFloat())
