@@ -2,8 +2,12 @@ package com.example.piecontrols
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
+import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -23,14 +27,23 @@ class PieAccessibilityService : AccessibilityService() {
     }
 
     private fun setupEdgeHandle() {
-        // Slim invisible trigger strip on the right side of the screen
+        // 1. Create a styled, curved sidebar
         edgeHandle = View(this).apply {
-            setBackgroundColor(0x33FFFFFF) // slightly translucent trigger bar
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#40FFFFFF")) // Frosted translucent white
+                // Curves the Top-Left and Bottom-Left corners, leaves right side flat against edge
+                cornerRadii = floatArrayOf(
+                    45f, 45f, // Top-Left
+                    0f, 0f,   // Top-Right
+                    0f, 0f,   // Bottom-Right
+                    45f, 45f  // Bottom-Left
+                )
+            }
         }
 
         val params = WindowManager.LayoutParams(
-            45, // strip width
-            650, // strip height
+            55, // Slightly wider to show off the curve
+            750, // Height of the trigger bar
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -49,6 +62,14 @@ class PieAccessibilityService : AccessibilityService() {
                     true
                 }
                 else -> false
+            }
+        }
+
+        // 2. Disable system "Back" gesture over the trigger area
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            edgeHandle.addOnLayoutChangeListener { v, left, top, right, bottom, _, _, _, _ ->
+                // Tells Android to exclude this specific rectangle from system gestures
+                v.systemGestureExclusionRects = listOf(Rect(0, 0, right - left, bottom - top))
             }
         }
 
