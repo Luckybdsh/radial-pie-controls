@@ -28,8 +28,7 @@ class PieMenuView(
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        // 40f is the sweet spot: keeps inner corners structured but softens the connecting edges
-        pathEffect = CornerPathEffect(40f)
+        pathEffect = CornerPathEffect(65f)
     }
 
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -47,6 +46,7 @@ class PieMenuView(
         loadCustomTiles()
     }
 
+    // Convert Android Drawable to Bitmap for Canvas drawing
     private fun getAppIconBitmap(pkgName: String): Bitmap? {
         return try {
             val drawable: Drawable = context.packageManager.getApplicationIcon(pkgName)
@@ -72,6 +72,7 @@ class PieMenuView(
             else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081")
         }
 
+        // Fetch custom app icon if it's in the layout
         val customPkg = prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube") ?: "com.google.android.youtube"
         var customAppBitmap: Bitmap? = null
         if (actionIds.contains(6)) {
@@ -116,9 +117,9 @@ class PieMenuView(
         canvas.rotate(-75f * (1f - animProgress), startX, startY)
 
         val baseInnerR = 140f * animProgress
-        val baseOuterR = 390f * animProgress 
+        val baseOuterR = 410f * animProgress
         val totalSpan = 165f
-        val gapAngle = 8f 
+        val gapAngle = 7f
         val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
@@ -130,32 +131,13 @@ class PieMenuView(
             val startAngle = 100f + (i.toFloat() * sweepAngle)
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
-            
-            val endAngle = actualStart + actualSweep
 
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
+            val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
 
-            // 1. Draw Inner Arc 
-            path.arcTo(innerRect, actualStart, actualSweep)
-
-            // 2. Line connecting to the Outer Right edge
-            val outerEndX = startX + currentOuterR * cos(Math.toRadians(endAngle.toDouble())).toFloat()
-            val outerEndY = startY + currentOuterR * sin(Math.toRadians(endAngle.toDouble())).toFloat()
-            path.lineTo(outerEndX, outerEndY)
-
-            // 3. GENTLE BEZIER CURVE: Reduced the bulge from +85f down to +35f for a softer curve
-            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
-            val bulgeR = currentOuterR + 35f 
-            val controlX = startX + bulgeR * cos(midAngle).toFloat()
-            val controlY = startY + bulgeR * sin(midAngle).toFloat()
-
-            val outerStartX = startX + currentOuterR * cos(Math.toRadians(actualStart.toDouble())).toFloat()
-            val outerStartY = startY + currentOuterR * sin(Math.toRadians(actualStart.toDouble())).toFloat()
-
-            path.quadTo(controlX, controlY, outerStartX, outerStartY)
-
-            // 4. Close the path back to the inner left edge
+            path.arcTo(outerRect, actualStart, actualSweep)
+            path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
             path.close()
 
             fillPaint.color = slice.color
@@ -169,6 +151,7 @@ class PieMenuView(
             
             canvas.drawPath(path, fillPaint)
 
+            val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
             val centerR = (currentInnerR + currentOuterR) / 2f
             val cx = (startX + centerR * cos(midAngle).toFloat())
             val cy = (startY + centerR * sin(midAngle).toFloat())
@@ -188,8 +171,11 @@ class PieMenuView(
     }
 
     private fun drawSliceIcon(canvas: Canvas, slice: Slice, cx: Float, cy: Float) {
+        
+        // DRAW CUSTOM APP ICON IF IT EXISTS
         if (slice.id == 6 && slice.customIcon != null) {
             val bmp = slice.customIcon!!
+            // Offset by half width/height to center it perfectly
             canvas.drawBitmap(bmp, cx - (bmp.width / 2f), cy - (bmp.height / 2f), null)
             return
         }
@@ -222,7 +208,7 @@ class PieMenuView(
                 canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx - 6f, cy + 12f, cx + 6f, cy + 24f), 0f, 180f, false, iconPaint)
             }
-            6 -> { // App Opening Fallback
+            6 -> { // Fallback App Opening Icon (if icon fails to load)
                 val appPaint = Paint(iconPaint).apply { style = Paint.Style.FILL }
                 canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx - 4f, cy - 4f), 4f, 4f, appPaint)
                 canvas.drawRoundRect(RectF(cx + 4f, cy - 16f, cx + 16f, cy - 4f), 4f, 4f, appPaint)
