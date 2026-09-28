@@ -24,12 +24,13 @@ class PieMenuView(
     private var animProgress = 0f
     
     private var visualTheme = "Neon"
+    private var isCenterActive = false // Tracks if thumb is hovering the close button
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        pathEffect = CornerPathEffect(15f) // Reduced greatly to preserve traditional pie slice shape
+        pathEffect = CornerPathEffect(15f)
     }
 
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -104,6 +105,7 @@ class PieMenuView(
         startX = x
         startY = y
         activeSlice = -1
+        isCenterActive = false // Reset close button
 
         triggerHaptic(25L)
 
@@ -127,14 +129,16 @@ class PieMenuView(
         super.onDraw(canvas)
         if (animProgress <= 0f) return
 
-        bgDimPaint.alpha = (120 * animProgress.coerceIn(0f, 1f)).toInt()
+        val safeProgress = animProgress.coerceIn(0f, 1f) // Prevents alpha values crashing from overshoot
+
+        bgDimPaint.alpha = (120 * safeProgress).toInt()
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgDimPaint)
 
         canvas.save()
-        canvas.rotate(-45f * (1f - animProgress.coerceIn(0f, 1f)), startX, startY)
+        canvas.rotate(-45f * (1f - safeProgress), startX, startY)
 
         val totalSpan = 165f
-        val gapAngle = 4f // Reduced gap for a tighter standard pie look
+        val gapAngle = 4f 
         val sweepAngle = totalSpan / slices.size.toFloat()
 
         slices.forEachIndexed { i, slice ->
@@ -154,7 +158,6 @@ class PieMenuView(
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
 
-            // CLASSIC PIE SLICE GEOMETRY (No bezier curves)
             val path = Path()
             val innerRect = RectF(startX - currentInnerR, startY - currentInnerR, startX + currentInnerR, startY + currentInnerR)
             val outerRect = RectF(startX - currentOuterR, startY - currentOuterR, startX + currentOuterR, startY + currentOuterR)
@@ -163,7 +166,6 @@ class PieMenuView(
             path.arcTo(innerRect, actualStart + actualSweep, -actualSweep)
             path.close()
 
-            // APPLY THE SELECTED THEME
             fillPaint.shader = null
             fillPaint.clearShadowLayer()
             borderPaint.color = Color.TRANSPARENT
@@ -196,7 +198,6 @@ class PieMenuView(
             canvas.drawPath(path, fillPaint)
             if (visualTheme == "Glass") canvas.drawPath(path, borderPaint)
 
-            // ICON & TEXT POSITIONING
             val midAngle = Math.toRadians((actualStart + actualSweep / 2f).toDouble())
             val iconR = currentInnerR + (currentOuterR - currentInnerR) * 0.45f
             val cx = (startX + iconR * cos(midAngle).toFloat())
@@ -208,7 +209,6 @@ class PieMenuView(
             drawSliceIcon(canvas, slice, cx, cy)
             canvas.restore()
 
-            // Standard flat typography positioned below the icon
             val textR = currentInnerR + (currentOuterR - currentInnerR) * 0.85f
             val textX = (startX + textR * cos(midAngle).toFloat())
             val textY = (startY + textR * sin(midAngle).toFloat())
@@ -219,9 +219,39 @@ class PieMenuView(
         }
         canvas.restore()
 
-        val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#40FFFFFF") }
-        val anchorRect = RectF(startX - 20f, startY - 90f, startX + 15f, startY + 90f)
-        canvas.drawRoundRect(anchorRect, 30f, 30f, anchorPaint)
+        // -------------------------------------------------
+        // NEW: CENTER CLOSE BUTTON (Replaces old static handle)
+        // -------------------------------------------------
+        val baseCenterR = 90f * animProgress
+        val centerR = if (isCenterActive) baseCenterR + 15f else baseCenterR
+        
+        val centerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = if (isCenterActive) Color.parseColor("#FF453A") else Color.parseColor("#1C1C1E")
+            alpha = if (isCenterActive) 255 else (220 * safeProgress).toInt()
+            if (isCenterActive) {
+                setShadowLayer(40f, 0f, 0f, Color.parseColor("#FF453A"))
+            }
+        }
+        
+        // Draws the semi-circle origin button
+        canvas.drawCircle(startX, startY, centerR, centerPaint)
+
+        val crossPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (isCenterActive) Color.WHITE else Color.parseColor("#8E8E93")
+            style = Paint.Style.STROKE
+            strokeWidth = 7f
+            strokeCap = Paint.Cap.ROUND
+            alpha = (255 * safeProgress).toInt()
+        }
+        
+        val crossSize = 14f * safeProgress
+        val crossCx = startX - 45f // Offset inward so it's fully visible on screen
+        val crossCy = startY
+        
+        // Draws the explicit 'X' icon
+        canvas.drawLine(crossCx - crossSize, crossCy - crossSize, crossCx + crossSize, crossCy + crossSize, crossPaint)
+        canvas.drawLine(crossCx - crossSize, crossCy + crossSize, crossCx + crossSize, crossCy - crossSize, crossPaint)
     }
 
     private fun drawSliceIcon(canvas: Canvas, slice: Slice, cx: Float, cy: Float) {
@@ -277,7 +307,12 @@ class PieMenuView(
 
         when (event.action) {
             MotionEvent.ACTION_MOVE -> {
-                if (dist > 90.0) {
+                // If thumb is pushed OUT into the tiles (distance > 110)
+                if (dist > 110.0) { 
+                    if (isCenterActive) {
+                        isCenterActive = false
+                        invalidate() // Turn off the red 'X' center button
+                    }
                     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
                     if (angle < 0.0) angle += 360.0
 
@@ -295,12 +330,25 @@ class PieMenuView(
                             invalidate()
                         }
                     }
+                } else {
+                    // Thumb pulled BACK into the center (distance < 110)
+                    if (activeSlice != -1) {
+                        activeSlice = -1
+                        invalidate() // Turn off active tiles
+                    }
+                    if (!isCenterActive) {
+                        isCenterActive = true
+                        triggerHaptic(15L) // Light haptic tick indicating closure area
+                        invalidate() // Light up the red 'X' button
+                    }
                 }
             }
             MotionEvent.ACTION_UP -> {
                 if (activeSlice != -1) {
                     triggerHaptic(18L)
                     onActionSelected(slices[activeSlice].id)
+                } else if (isCenterActive) {
+                    triggerHaptic(20L) // Distinct haptic pop on manual close
                 }
                 onDismiss()
             }
