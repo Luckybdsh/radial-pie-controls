@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.widget.Toast
 
 class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -66,7 +67,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
 
     private fun getEdgeParams(): WindowManager.LayoutParams {
         val barHeight = prefs.getInt("PREF_BAR_HEIGHT", 750)
-        val barPos = prefs.getInt("PREF_BAR_POS", 0) // Y-offset from center
+        val barPos = prefs.getInt("PREF_BAR_POS", 0)
 
         return WindowManager.LayoutParams(
             55,
@@ -125,14 +126,15 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             6 -> {
                 try {
-                    val intent = packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                    // Reads the custom package name you typed in the app
+                    val customPkg = prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube") ?: "com.google.android.youtube"
+                    val intent = packageManager.getLaunchIntentForPackage(customPkg)
+                    
                     if (intent != null) {
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         startActivity(intent)
                     } else {
-                        val fallback = Intent(android.provider.Settings.ACTION_SETTINGS)
-                        fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(fallback)
+                        Toast.makeText(this, "App not found! Check package name.", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) { e.printStackTrace() }
             }
