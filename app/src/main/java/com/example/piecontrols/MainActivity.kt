@@ -25,7 +25,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dragContainer: LinearLayout
     private var currentTiles = mutableListOf<TileData>()
     
-    // UI Elements for permissions
     private lateinit var overlayCard: LinearLayout
     private lateinit var accessibilityCard: LinearLayout
     private lateinit var statusDot: View
@@ -33,7 +32,7 @@ class MainActivity : AppCompatActivity() {
 
     private val allActions = mapOf(
         0 to "Home", 1 to "Screenshot", 2 to "Back",
-        3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open App (YouTube)"
+        3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open Custom App"
     )
 
     data class TileData(val id: Int, val name: String)
@@ -52,14 +51,15 @@ class MainActivity : AppCompatActivity() {
             setPadding(48, 64, 48, 64)
         }
 
-        // 1. RESTORED: Top Control Panel (Turn On/Off & Permissions)
         mainLayout.addView(createTopControlPanel())
 
-        // 2. Sliders
+        // NEW: App Selection Panel
+        mainLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Package Name"))
+        mainLayout.addView(createAppSelectPanel())
+
         mainLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         mainLayout.addView(createSlidersPanel())
 
-        // 3. Drag and Drop
         mainLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
         mainLayout.addView(createDragDropPanel())
 
@@ -74,18 +74,12 @@ class MainActivity : AppCompatActivity() {
         refreshPermissionStates()
     }
 
-    // --- RESTORED PERMISSION PANEL METHODS ---
     private fun createTopControlPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 40, 40, 40)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#121214"))
-                cornerRadius = 40f
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { setMargins(0, 0, 0, 40) }
+            background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
         }
 
         val statusRow = LinearLayout(this).apply {
@@ -104,7 +98,6 @@ class MainActivity : AppCompatActivity() {
             textSize = 10f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#FF453A"))
-            letterSpacing = 0.1f
         }
         statusRow.addView(statusDot)
         statusRow.addView(statusText)
@@ -118,16 +111,12 @@ class MainActivity : AppCompatActivity() {
 
         overlayCard = createPermissionBox("Screen Overlay").apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(0, 0, 16, 0) }
-            setOnClickListener {
-                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            }
+            setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
         }
         
         accessibilityCard = createPermissionBox("Accessibility").apply {
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(16, 0, 0, 0) }
-            setOnClickListener {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            }
+            setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
 
         permissionsRow.addView(overlayCard)
@@ -143,12 +132,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(32, 32, 32, 32)
             background = GradientDrawable().apply { setColor(Color.parseColor("#1A0909")); setStroke(3, Color.parseColor("#3D1616")); cornerRadius = 24f }
         }
-        box.addView(TextView(this).apply {
-            text = title
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#FF8A80"))
-        })
+        box.addView(TextView(this).apply { text = title; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#FF8A80")) })
         return box
     }
 
@@ -160,27 +144,48 @@ class MainActivity : AppCompatActivity() {
             overlayCard.background = GradientDrawable().apply { setColor(Color.parseColor("#091A0F")); setStroke(3, Color.parseColor("#163D22")); cornerRadius = 24f }
         }
     }
-    
-    // --- SLIDERS & DRAG DROP METHODS ---
+
+    private fun createAppSelectPanel(): View {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
+        }
+        
+        val input = EditText(this).apply {
+            setText(prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube"))
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+            hint = "e.g. com.whatsapp"
+            setPadding(32, 32, 32, 32)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#1A1A1E")); cornerRadius = 20f }
+        }
+        
+        val saveBtn = Button(this).apply {
+            text = "Save App Package"
+            setBackgroundColor(Color.parseColor("#2979FF"))
+            setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 20, 0, 0) }
+            setOnClickListener {
+                prefs.edit().putString("PREF_CUSTOM_APP_PKG", input.text.toString().trim()).apply()
+                Toast.makeText(this@MainActivity, "App shortcut saved!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        panel.addView(input)
+        panel.addView(saveBtn)
+        return panel
+    }
 
     private fun createSectionTitle(title: String, subtitle: String = ""): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 32, 0, 24)
         }
-        row.addView(TextView(this).apply {
-            text = title
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#8E8E93"))
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        })
+        row.addView(TextView(this).apply { text = title; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#8E8E93")); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
         if (subtitle.isNotEmpty()) {
-            row.addView(TextView(this).apply {
-                text = subtitle
-                textSize = 10f
-                setTextColor(Color.parseColor("#2979FF"))
-            })
+            row.addView(TextView(this).apply { text = subtitle; textSize = 10f; setTextColor(Color.parseColor("#2979FF")) })
         }
         return row
     }
@@ -189,10 +194,7 @@ class MainActivity : AppCompatActivity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 40, 40, 40)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#121214"))
-                cornerRadius = 40f
-            }
+            background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
         }
 
         val heightLabel = TextView(this).apply { text = "Bar Height"; setTextColor(Color.WHITE); setPadding(0, 0, 0, 16) }
@@ -200,9 +202,7 @@ class MainActivity : AppCompatActivity() {
             max = 1200
             progress = prefs.getInt("PREF_BAR_HEIGHT", 750) - 200
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    prefs.edit().putInt("PREF_BAR_HEIGHT", progress + 200).apply()
-                }
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { prefs.edit().putInt("PREF_BAR_HEIGHT", progress + 200).apply() }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
@@ -213,9 +213,7 @@ class MainActivity : AppCompatActivity() {
             max = 1000 
             progress = prefs.getInt("PREF_BAR_POS", 0) + 500
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    prefs.edit().putInt("PREF_BAR_POS", progress - 500).apply()
-                }
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { prefs.edit().putInt("PREF_BAR_POS", progress - 500).apply() }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
@@ -240,53 +238,33 @@ class MainActivity : AppCompatActivity() {
     private fun loadTiles() {
         val savedStr = prefs.getString("PREF_TILE_ACTIONS", "2,0,6,4,1") ?: "2,0,6,4,1"
         val ids = savedStr.split(",").mapNotNull { it.toIntOrNull() }
-        
         currentTiles.clear()
-        ids.forEach { id ->
-            val name = allActions[id] ?: "Unknown"
-            currentTiles.add(TileData(id, name))
-        }
+        ids.forEach { id -> currentTiles.add(TileData(id, allActions[id] ?: "Unknown")) }
         renderTiles()
     }
 
     private fun renderTiles() {
         dragContainer.removeAllViews()
-
         currentTiles.forEachIndexed { index, tile ->
             val tileView = createTileRow(tile.name)
             tileView.tag = index 
 
             tileView.setOnLongClickListener { v ->
-                val item = ClipData.Item(index.toString())
-                val dragData = ClipData(v.tag.toString(), arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), item)
-                val shadow = View.DragShadowBuilder(v)
-                v.startDragAndDrop(dragData, shadow, null, 0)
+                val dragData = ClipData(v.tag.toString(), arrayOf(ClipDescription.MIMETYPE_TEXT_PLAIN), ClipData.Item(index.toString()))
+                v.startDragAndDrop(dragData, View.DragShadowBuilder(v), null, 0)
                 true
             }
 
             tileView.setOnDragListener { v, event ->
                 when (event.action) {
                     DragEvent.ACTION_DRAG_STARTED -> true
-                    DragEvent.ACTION_DRAG_ENTERED -> {
-                        v.setBackgroundColor(Color.parseColor("#292930"))
-                        true
-                    }
-                    DragEvent.ACTION_DRAG_EXITED -> {
-                        v.background = null
-                        true
-                    }
+                    DragEvent.ACTION_DRAG_ENTERED -> { v.setBackgroundColor(Color.parseColor("#292930")); true }
+                    DragEvent.ACTION_DRAG_EXITED, DragEvent.ACTION_DRAG_ENDED -> { v.background = null; true }
                     DragEvent.ACTION_DROP -> {
                         v.background = null
-                        val draggedIndex = event.clipData.getItemAt(0).text.toString().toInt()
-                        val targetIndex = v.tag as Int
-                        
-                        Collections.swap(currentTiles, draggedIndex, targetIndex)
+                        Collections.swap(currentTiles, event.clipData.getItemAt(0).text.toString().toInt(), v.tag as Int)
                         saveTileOrder()
                         renderTiles() 
-                        true
-                    }
-                    DragEvent.ACTION_DRAG_ENDED -> {
-                        v.background = null
                         true
                     }
                     else -> false
@@ -301,29 +279,14 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(32, 32, 32, 32)
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 8, 0, 8)
-            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 8, 0, 8) }
         }
-        val grip = TextView(this).apply {
-            text = "≡"
-            textSize = 20f
-            setTextColor(Color.parseColor("#666666"))
-            setPadding(0, 0, 32, 0)
-        }
-        val label = TextView(this).apply {
-            text = name
-            textSize = 16f
-            setTextColor(Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        row.addView(grip)
-        row.addView(label)
+        row.addView(TextView(this).apply { text = "≡"; textSize = 20f; setTextColor(Color.parseColor("#666666")); setPadding(0, 0, 32, 0) })
+        row.addView(TextView(this).apply { text = name; textSize = 16f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD })
         return row
     }
 
     private fun saveTileOrder() {
-        val idString = currentTiles.joinToString(",") { it.id.toString() }
-        prefs.edit().putString("PREF_TILE_ACTIONS", idString).apply()
+        prefs.edit().putString("PREF_TILE_ACTIONS", currentTiles.joinToString(",") { it.id.toString() }).apply()
     }
 }
