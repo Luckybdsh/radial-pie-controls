@@ -55,10 +55,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         mainLayout.addView(createTopControlPanel())
+        
+        // NEW: Visual Theme Selector
+        mainLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
+        mainLayout.addView(createThemeStylePanel())
+
         mainLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
         mainLayout.addView(createAppSelectPanel())
+        
         mainLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         mainLayout.addView(createSlidersPanel())
+        
         mainLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
         mainLayout.addView(createDragDropPanel())
 
@@ -143,6 +150,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun createThemeStylePanel(): View {
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }
+
+        val styles = listOf(
+            Triple("Simple", "Flat Colors", "Simple"),
+            Triple("Neon", "Glowing Hover", "Neon"),
+            Triple("Glass", "Frosted & Blurry", "Glass")
+        )
+
+        styles.forEach { style ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(40, 40, 40, 40)
+                background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 32f }
+                layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }
+                setOnClickListener {
+                    prefs.edit().putString("PREF_VISUAL_STYLE", style.third).apply()
+                    Toast.makeText(this@MainActivity, "${style.first} Theme Applied! Toggle Service.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            val titleView = TextView(this).apply { text = style.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, 0, 8) }
+            val descView = TextView(this).apply { text = style.second; textSize = 11f; setTextColor(Color.parseColor("#8E8E93")) }
+            card.addView(titleView)
+            card.addView(descView)
+            row.addView(card)
+        }
+        scroll.addView(row)
+        return scroll
+    }
+
     private fun createAppSelectPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -176,11 +214,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
         val resolveInfos = pm.queryIntentActivities(intent, 0)
         
-        // Map to Pair(AppName, PackageName) and sort alphabetically
-        val appList = resolveInfos.map {
-            Pair(it.loadLabel(pm).toString(), it.activityInfo.packageName)
-        }.sortedBy { it.first }
-
+        val appList = resolveInfos.map { Pair(it.loadLabel(pm).toString(), it.activityInfo.packageName) }.sortedBy { it.first }
         val names = appList.map { it.first }.toTypedArray()
 
         AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
@@ -188,12 +222,9 @@ class MainActivity : AppCompatActivity() {
             .setItems(names) { _, which ->
                 val selectedName = appList[which].first
                 val selectedPkg = appList[which].second
-                prefs.edit()
-                    .putString("PREF_CUSTOM_APP_NAME", selectedName)
-                    .putString("PREF_CUSTOM_APP_PKG", selectedPkg)
-                    .apply()
+                prefs.edit().putString("PREF_CUSTOM_APP_NAME", selectedName).putString("PREF_CUSTOM_APP_PKG", selectedPkg).apply()
                 selectedAppLabel.text = "Selected: $selectedName"
-                Toast.makeText(this, "Saved! Toggle Service to reload icon.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Saved! Toggle Service to reload.", Toast.LENGTH_SHORT).show()
             }
             .show()
     }
