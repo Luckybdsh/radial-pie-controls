@@ -49,27 +49,29 @@ class PieMenuView(
 
     init {
         setLayerType(LAYER_TYPE_SOFTWARE, null)
-        loadPreferences() // Loads dynamic tiles on launch
+        loadPreferences()
     }
 
     private fun loadPreferences() {
         val prefs = context.getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
-        val tileCount = prefs.getInt("PREF_TILE_COUNT", 5) // Default 5 tiles
+        val tileCount = prefs.getInt("PREF_TILE_COUNT", 5)
         val theme = prefs.getString("PREF_THEME", "Neon") ?: "Neon"
 
         val themeColors = when (theme) {
             "Pastel" -> listOf("#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#E8BAFF")
             "Mono" -> listOf("#FFFFFF", "#CCCCCC", "#A3A3A3", "#7A7A7A", "#525252", "#292929")
-            else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081") // Neon
+            else -> listOf("#00E5FF", "#B388FF", "#69F0AE", "#FF8A80", "#FFD54F", "#FF4081") 
         }
 
+        // ADDED THE APP TILE (ID: 6) to the rotation list
         val availableActions = listOf(
-            Triple("Back", 2, 2),        // ID 2 = Back
-            Triple("Home", 0, 0),        // ID 0 = Home
-            Triple("Recents", 4, 4),     // ID 4 = Recents
-            Triple("Screen", 1, 1),      // ID 1 = Screenshot
-            Triple("Volume", 3, 3),      // ID 3 = Volume
-            Triple("Notifs", 5, 5)       // ID 5 = Notifications
+            Triple("Back", 2, 2),        
+            Triple("Home", 0, 0),        
+            Triple("App", 6, 6),         // <--- New App Opening Option
+            Triple("Recents", 4, 4),     
+            Triple("Screen", 1, 1),      
+            Triple("Volume", 3, 3),      
+            Triple("Notifs", 5, 5)       
         )
 
         slices.clear()
@@ -110,7 +112,7 @@ class PieMenuView(
         val baseOuterR = 410f * animProgress
         val totalSpan = 165f 
         val gapAngle = 7f    
-        val sweepAngle = totalSpan / slices.size.toFloat() // Dynamically adjusts size based on tile count!
+        val sweepAngle = totalSpan / slices.size.toFloat() 
 
         slices.forEachIndexed { i, slice ->
             val isSelected = (i == activeSlice)
@@ -180,15 +182,22 @@ class PieMenuView(
                 canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx + 8f, cy - 12f, cx + 24f, cy + 12f), -45f, 90f, false, iconPaint)
             }
-            4 -> { // Recents (Android squares)
+            4 -> { // Recents 
                 canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx + 8f, cy + 8f), 4f, 4f, iconPaint)
                 val path = Path().apply { moveTo(cx - 6f, cy + 16f); lineTo(cx + 16f, cy + 16f); lineTo(cx + 16f, cy - 6f) }
                 canvas.drawPath(path, iconPaint)
             }
-            5 -> { // Notifications (Bell)
+            5 -> { // Notifications 
                 val path = Path().apply { moveTo(cx, cy - 16f); arcTo(RectF(cx - 12f, cy - 16f, cx + 12f, cy + 8f), 180f, 180f); lineTo(cx + 18f, cy + 12f); lineTo(cx - 18f, cy + 12f); close() }
                 canvas.drawPath(path, iconPaint)
                 canvas.drawArc(RectF(cx - 6f, cy + 12f, cx + 6f, cy + 24f), 0f, 180f, false, iconPaint)
+            }
+            6 -> { // App Opening (4-Square Grid Icon)
+                val appPaint = Paint(iconPaint).apply { style = Paint.Style.FILL }
+                canvas.drawRoundRect(RectF(cx - 16f, cy - 16f, cx - 4f, cy - 4f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx + 4f, cy - 16f, cx + 16f, cy - 4f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx - 16f, cy + 4f, cx - 4f, cy + 16f), 4f, 4f, appPaint)
+                canvas.drawRoundRect(RectF(cx + 4f, cy + 4f, cx + 16f, cy + 16f), 4f, 4f, appPaint)
             }
         }
     }
