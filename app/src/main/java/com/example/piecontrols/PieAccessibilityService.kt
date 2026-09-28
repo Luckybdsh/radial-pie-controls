@@ -2,6 +2,7 @@ package com.example.piecontrols
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -27,16 +28,10 @@ class PieAccessibilityService : AccessibilityService() {
     }
 
     private fun setupEdgeHandle() {
-        // 1. Create a styled, curved sidebar
         edgeHandle = View(this).apply {
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#40FFFFFF")) // Frosted translucent white
-                cornerRadii = floatArrayOf(
-                    45f, 45f, // Top-Left
-                    0f, 0f,   // Top-Right
-                    0f, 0f,   // Bottom-Right
-                    45f, 45f  // Bottom-Left
-                )
+                setColor(Color.parseColor("#40FFFFFF")) 
+                cornerRadii = floatArrayOf(45f, 45f, 0f, 0f, 0f, 0f, 45f, 45f)
             }
         }
 
@@ -64,7 +59,6 @@ class PieAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 2. Disable system "Back" gesture over the trigger area
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             edgeHandle.addOnLayoutChangeListener { v, left, top, right, bottom, _, _, _, _ ->
                 v.systemGestureExclusionRects = listOf(Rect(0, 0, right - left, bottom - top))
@@ -114,17 +108,32 @@ class PieAccessibilityService : AccessibilityService() {
             }
             4 -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+            6 -> {
+                // APP OPENING LOGIC
+                try {
+                    // NOTE: You can change "com.google.android.youtube" to any app package (e.g. "com.whatsapp")
+                    val intent = packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    } else {
+                        // Fallback: Opens Settings if the app is not installed
+                        val fallback = Intent(android.provider.Settings.ACTION_SETTINGS)
+                        fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(fallback)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
-
     override fun onDestroy() {
         super.onDestroy()
-        if (::edgeHandle.isInitialized) {
-            windowManager.removeView(edgeHandle)
-        }
+        if (::edgeHandle.isInitialized) windowManager.removeView(edgeHandle)
         hidePieOverlay()
     }
 }
