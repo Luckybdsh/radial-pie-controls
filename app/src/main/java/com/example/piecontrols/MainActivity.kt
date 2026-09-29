@@ -15,10 +15,12 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.InputType
 import android.view.DragEvent
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AlphaAnimation
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -42,7 +44,9 @@ class MainActivity : AppCompatActivity() {
 
     private val themeCards = mutableMapOf<String, LinearLayout>()
 
-    // Navigation views
+    // Navigation and Layout views
+    private lateinit var mainAppContainer: FrameLayout
+    private lateinit var loginContainer: LinearLayout
     private lateinit var homeScroll: ScrollView
     private lateinit var settingsScroll: ScrollView
     private lateinit var homeNavTab: LinearLayout
@@ -51,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeNavText: TextView
     private lateinit var settingsNavIcon: TextView
     private lateinit var settingsNavText: TextView
+    private lateinit var welcomeLabel: TextView
 
     private val allActions = mapOf(
         0 to "Home", 1 to "Screenshot", 2 to "Back",
@@ -60,7 +65,7 @@ class MainActivity : AppCompatActivity() {
     data class TileData(val id: Int, val name: String)
 
     // =======================================================================
-    // BACKUP & RESTORE ENGINES (JSON Serializers)
+    // BACKUP & RESTORE ENGINES
     // =======================================================================
 
     private val backupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -122,8 +127,16 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
 
         val rootFrame = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#09090B")) }
+        
+        // Background Physics - Stays active behind everything!
         val bubbleBg = BubbleBackgroundView(this)
         rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        // --- MAIN APP UI CONTAINER ---
+        mainAppContainer = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            visibility = View.GONE // Hidden until logged in
+        }
 
         // HOME PAGE
         homeScroll = ScrollView(this).apply { isFillViewport = true; setPadding(48, 64, 48, 240); clipToPadding = false }
@@ -138,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         homeLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
         homeLayout.addView(createDragDropPanel())
         homeScroll.addView(homeLayout)
-        rootFrame.addView(homeScroll)
+        mainAppContainer.addView(homeScroll)
 
         // SETTINGS PAGE
         settingsScroll = ScrollView(this).apply { isFillViewport = true; visibility = View.GONE; setPadding(48, 64, 48, 240); clipToPadding = false }
@@ -147,18 +160,141 @@ class MainActivity : AppCompatActivity() {
         settingsLayout.addView(createBackupRestorePanel())
         settingsLayout.addView(createSectionTitle("UNLOCK PREMIUM", "Enter passcodes to upgrade"))
         settingsLayout.addView(createSubscriptionPanel())
+        settingsLayout.addView(createSectionTitle("ACCOUNT SESSION", "Manage your login"))
+        settingsLayout.addView(createLogoutPanel())
         settingsScroll.addView(settingsLayout)
-        rootFrame.addView(settingsScroll)
+        mainAppContainer.addView(settingsScroll)
 
         // BOTTOM NAV
-        rootFrame.addView(createBottomNavBar())
+        mainAppContainer.addView(createBottomNavBar())
+        rootFrame.addView(mainAppContainer)
+
+        // --- LOGIN UI CONTAINER ---
+        loginContainer = createLoginScreen()
+        rootFrame.addView(loginContainer)
+
         setContentView(rootFrame)
         loadTiles()
+
+        // Check Login State on boot
+        if (prefs.getBoolean("PREF_IS_LOGGED_IN", false)) {
+            showMainApp(false)
+        }
     }
 
     override fun onResume() {
         super.onResume()
         refreshPermissionStates()
+    }
+
+    // =======================================================================
+    // LOGIN ENGINE
+    // =======================================================================
+
+    private fun createLoginScreen(): LinearLayout {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(64, 64, 64, 64)
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setBackgroundColor(Color.parseColor("#B309090B")) // Semi-transparent black so bubbles show through!
+        }
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(64, 80, 64, 80); gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#1C1C22"), Color.parseColor("#121214"))).apply {
+                cornerRadius = 64f; setStroke(2, Color.parseColor("#2E2E3C"))
+            }
+        }
+
+        card.addView(TextView(this).apply { text = "Pie Controls"; textSize = 28f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, 0, 16) })
+        card.addView(TextView(this).apply { text = "Welcome back! Please login."; textSize = 14f; setTextColor(Color.parseColor("#8E8E93")); setPadding(0, 0, 0, 64) })
+
+        val usernameInput = EditText(this).apply {
+            hint = "Username"; setHintTextColor(Color.parseColor("#666666")); setTextColor(Color.WHITE)
+            setPadding(48, 48, 48, 48)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#09090B")); cornerRadius = 32f }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 32) }
+        }
+
+        val passwordInput = EditText(this).apply {
+            hint = "Password"; setHintTextColor(Color.parseColor("#666666")); setTextColor(Color.WHITE)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setPadding(48, 48, 48, 48)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#09090B")); cornerRadius = 32f }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 64) }
+        }
+
+        val loginBtn = Button(this).apply {
+            text = "Login"; setBackgroundColor(Color.parseColor("#2979FF")); setTextColor(Color.WHITE); isAllCaps = false; textSize = 16f
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 140).apply { setMargins(0, 0, 0, 24) }
+            background = GradientDrawable().apply { setColor(Color.parseColor("#2979FF")); cornerRadius = 32f }
+            setOnClickListener {
+                val user = usernameInput.text.toString().trim()
+                if (user.isNotEmpty() && passwordInput.text.toString().isNotEmpty()) {
+                    performLogin(user)
+                } else {
+                    Toast.makeText(this@MainActivity, "Please enter details", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val guestBtn = Button(this).apply {
+            text = "Continue as Guest"; setBackgroundColor(Color.TRANSPARENT); setTextColor(Color.parseColor("#A0A0A5")); isAllCaps = false
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setOnClickListener { performLogin("Guest") }
+        }
+
+        card.addView(usernameInput); card.addView(passwordInput); card.addView(loginBtn); card.addView(guestBtn)
+        container.addView(card)
+        return container
+    }
+
+    private fun performLogin(username: String) {
+        prefs.edit().putBoolean("PREF_IS_LOGGED_IN", true).putString("PREF_USERNAME", username).apply()
+        
+        // Hide keyboard
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+        
+        showMainApp(true)
+    }
+
+    private fun showMainApp(animate: Boolean) {
+        val username = prefs.getString("PREF_USERNAME", "Guest")
+        if (::welcomeLabel.isInitialized) { welcomeLabel.text = "Welcome, $username" }
+
+        if (animate) {
+            val fadeOut = AlphaAnimation(1f, 0f).apply { duration = 400 }
+            val fadeIn = AlphaAnimation(0f, 1f).apply { duration = 400 }
+            
+            loginContainer.startAnimation(fadeOut)
+            loginContainer.visibility = View.GONE
+            
+            mainAppContainer.visibility = View.VISIBLE
+            mainAppContainer.startAnimation(fadeIn)
+        } else {
+            loginContainer.visibility = View.GONE
+            mainAppContainer.visibility = View.VISIBLE
+        }
+    }
+
+    private fun createLogoutPanel(): View {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
+        }
+        val logoutBtn = Button(this).apply {
+            text = "Log Out"; setBackgroundColor(Color.parseColor("#FF453A")); setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#3D1616")); setStroke(2, Color.parseColor("#FF453A")); cornerRadius = 32f }
+            setOnClickListener {
+                prefs.edit().putBoolean("PREF_IS_LOGGED_IN", false).apply()
+                finish(); startActivity(intent) // Restarts the app back to login screen
+            }
+        }
+        panel.addView(logoutBtn)
+        return panel
     }
 
     // --- BOTTOM NAVIGATION BAR ---
@@ -209,6 +345,11 @@ class MainActivity : AppCompatActivity() {
             background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
         }
+        
+        val username = prefs.getString("PREF_USERNAME", "Guest")
+        welcomeLabel = TextView(this).apply { text = "Welcome, $username"; textSize = 12f; setTextColor(Color.parseColor("#2979FF")); setPadding(0, 0, 0, 24); typeface = Typeface.DEFAULT_BOLD }
+        panel.addView(welcomeLabel)
+
         val switchRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, 32) }
         val titleTextLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }
         titleTextLayout.addView(TextView(this).apply { text = "Pie Controls"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
@@ -474,7 +615,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createSubscriptionPanel(): View {
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) } }
         val currentTier = prefs.getInt("PREF_USER_TIER", 0)
 
         fun createTierCard(tierLevel: Int, titleText: String, descText: String, colorHex: String, unlockCode: String): View {
