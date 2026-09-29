@@ -34,6 +34,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var selectedAppLabel: TextView
 
+    // Map to hold our theme cards so we can update their colors dynamically
+    private val themeCards = mutableMapOf<String, LinearLayout>()
+
     private val allActions = mapOf(
         0 to "Home", 1 to "Screenshot", 2 to "Back",
         3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open App"
@@ -87,7 +90,6 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
         }
 
-        // --- NEW: MASTER ON/OFF SWITCH ---
         val switchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -110,7 +112,6 @@ class MainActivity : AppCompatActivity() {
         switchRow.addView(masterSwitch)
         panel.addView(switchRow)
 
-        // --- STATUS & PERMISSIONS ---
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -174,6 +175,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // --- UPDATED: Dynamic Theme Selection Panel ---
     private fun createThemeStylePanel(): View {
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }
@@ -183,26 +185,54 @@ class MainActivity : AppCompatActivity() {
             Triple("Neon", "Glowing Hover", "Neon"),
             Triple("Glass", "Frosted & Blurry", "Glass")
         )
+        
+        val currentTheme = prefs.getString("PREF_VISUAL_STYLE", "Neon") ?: "Neon"
 
         styles.forEach { style ->
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(40, 40, 40, 40)
-                background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 32f }
                 layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }
                 setOnClickListener {
                     prefs.edit().putString("PREF_VISUAL_STYLE", style.third).apply()
-                    Toast.makeText(this@MainActivity, "${style.first} Theme Applied! Toggle Service.", Toast.LENGTH_SHORT).show()
+                    updateThemeSelectionUI(style.third) // Instantly update colors
                 }
             }
+            
             val titleView = TextView(this).apply { text = style.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, 0, 8) }
             val descView = TextView(this).apply { text = style.second; textSize = 11f; setTextColor(Color.parseColor("#8E8E93")) }
+            
             card.addView(titleView)
             card.addView(descView)
+            
+            themeCards[style.third] = card
             row.addView(card)
         }
+        
+        updateThemeSelectionUI(currentTheme) // Set initial highlighting when app loads
         scroll.addView(row)
         return scroll
+    }
+
+    // Updates the borders and backgrounds of the theme boxes
+    private fun updateThemeSelectionUI(selectedTheme: String) {
+        themeCards.forEach { (themeName, card) ->
+            if (themeName == selectedTheme) {
+                // ACTIVE STATE: Brighter background + Blue Accent Border
+                card.background = GradientDrawable().apply { 
+                    setColor(Color.parseColor("#1C1C22"))
+                    setStroke(5, Color.parseColor("#2979FF"))
+                    cornerRadius = 32f 
+                }
+            } else {
+                // INACTIVE STATE: Standard dark background, no border
+                card.background = GradientDrawable().apply { 
+                    setColor(Color.parseColor("#121214"))
+                    setStroke(0, Color.TRANSPARENT)
+                    cornerRadius = 32f 
+                }
+            }
+        }
     }
 
     private fun createAppSelectPanel(): View {
