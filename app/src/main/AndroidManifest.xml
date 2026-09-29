@@ -11,6 +11,7 @@
         android:label="Pie Controls"
         android:supportsRtl="true"
         android:theme="@style/Theme.PieControls">
+        android:icon="@drawable/app_logo"
 
         <activity
             android:name=".MainActivity"
