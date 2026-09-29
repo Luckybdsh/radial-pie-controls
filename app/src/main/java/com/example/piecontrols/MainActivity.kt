@@ -67,10 +67,10 @@ class MainActivity : AppCompatActivity() {
         val bubbleBg = BubbleBackgroundView(this)
         rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        // 2. Tab 1: HOME PAGE
+        // 2. Tab 1: HOME PAGE (Now contains all customization!)
         homeScroll = ScrollView(this).apply {
             isFillViewport = true
-            setPadding(48, 64, 48, 240) // Bottom padding ensures content isn't hidden by nav bar
+            setPadding(48, 64, 48, 240) 
             clipToPadding = false
         }
         val homeLayout = LinearLayout(this).apply {
@@ -81,10 +81,16 @@ class MainActivity : AppCompatActivity() {
         homeLayout.addView(createThemeStylePanel())
         homeLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
         homeLayout.addView(createAppSelectPanel())
+        // MOVED BACK TO HOME:
+        homeLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
+        homeLayout.addView(createSlidersPanel())
+        homeLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
+        homeLayout.addView(createDragDropPanel())
+        
         homeScroll.addView(homeLayout)
         rootFrame.addView(homeScroll)
 
-        // 3. Tab 2: SETTINGS PAGE
+        // 3. Tab 2: SETTINGS PAGE (Backup, Restore, Subscription)
         settingsScroll = ScrollView(this).apply {
             isFillViewport = true
             visibility = View.GONE
@@ -94,10 +100,11 @@ class MainActivity : AppCompatActivity() {
         val settingsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        settingsLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
-        settingsLayout.addView(createSlidersPanel())
-        settingsLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
-        settingsLayout.addView(createDragDropPanel())
+        settingsLayout.addView(createSectionTitle("DATA MANAGEMENT", "Export or import your layout"))
+        settingsLayout.addView(createBackupRestorePanel())
+        settingsLayout.addView(createSectionTitle("ACCOUNT & BILLING", "Manage premium features"))
+        settingsLayout.addView(createSubscriptionPanel())
+        
         settingsScroll.addView(settingsLayout)
         rootFrame.addView(settingsScroll)
 
@@ -141,17 +148,11 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // Home Tab Button
-        homeNavTab = createNavTab("⌂", "Home", true) {
-            switchTab(isHome = true)
-        }
+        homeNavTab = createNavTab("⌂", "Home", true) { switchTab(isHome = true) }
         homeNavIcon = homeNavTab.getChildAt(0) as TextView
         homeNavText = homeNavTab.getChildAt(1) as TextView
 
-        // Settings Tab Button
-        settingsNavTab = createNavTab("⚙", "Settings", false) {
-            switchTab(isHome = false)
-        }
+        settingsNavTab = createNavTab("⚙", "Settings", false) { switchTab(isHome = false) }
         settingsNavIcon = settingsNavTab.getChildAt(0) as TextView
         settingsNavText = settingsNavTab.getChildAt(1) as TextView
 
@@ -202,10 +203,7 @@ class MainActivity : AppCompatActivity() {
             homeScroll.visibility = View.VISIBLE
             settingsScroll.visibility = View.GONE
 
-            homeNavTab.background = GradientDrawable().apply {
-                setColor(Color.parseColor("#202738"))
-                cornerRadius = 48f
-            }
+            homeNavTab.background = GradientDrawable().apply { setColor(Color.parseColor("#202738")); cornerRadius = 48f }
             settingsNavTab.background = null
 
             homeNavIcon.setTextColor(Color.parseColor("#2979FF"))
@@ -216,10 +214,7 @@ class MainActivity : AppCompatActivity() {
             homeScroll.visibility = View.GONE
             settingsScroll.visibility = View.VISIBLE
 
-            settingsNavTab.background = GradientDrawable().apply {
-                setColor(Color.parseColor("#202738"))
-                cornerRadius = 48f
-            }
+            settingsNavTab.background = GradientDrawable().apply { setColor(Color.parseColor("#202738")); cornerRadius = 48f }
             homeNavTab.background = null
 
             settingsNavIcon.setTextColor(Color.parseColor("#2979FF"))
@@ -432,8 +427,6 @@ class MainActivity : AppCompatActivity() {
         return row
     }
 
-    // --- SETTINGS COMPONENTS ---
-
     private fun createSlidersPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -579,10 +572,117 @@ class MainActivity : AppCompatActivity() {
     private fun saveTileOrder() {
         prefs.edit().putString("PREF_TILE_ACTIONS", currentTiles.joinToString(",") { it.id.toString() }).apply()
     }
+
+
+    // --- NEW: SETTINGS & BACKUP PANELS ---
+
+    private fun createBackupRestorePanel(): View {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
+            background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
+        }
+
+        // Create Backup Button
+        val backupBtn = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 16, 0, 32)
+            
+            addView(TextView(this@MainActivity).apply { text = "↑"; textSize = 24f; setTextColor(Color.parseColor("#2979FF")); setPadding(0, 0, 32, 0) })
+            
+            val textLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+            textLayout.addView(TextView(this@MainActivity).apply { text = "Create Backup"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
+            textLayout.addView(TextView(this@MainActivity).apply { text = "Save settings to a local file"; textSize = 11f; setTextColor(Color.parseColor("#8E8E93")) })
+            addView(textLayout)
+
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "Backup system will be implemented here!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Restore Backup Button
+        val restoreBtn = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 16, 0, 16)
+            
+            addView(TextView(this@MainActivity).apply { text = "↓"; textSize = 24f; setTextColor(Color.parseColor("#34C759")); setPadding(0, 0, 32, 0) })
+            
+            val textLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+            textLayout.addView(TextView(this@MainActivity).apply { text = "Restore Backup"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
+            textLayout.addView(TextView(this@MainActivity).apply { text = "Load settings from a file"; textSize = 11f; setTextColor(Color.parseColor("#8E8E93")) })
+            addView(textLayout)
+
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "Restore system will be implemented here!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        panel.addView(backupBtn)
+        panel.addView(restoreBtn)
+        return panel
+    }
+
+    private fun createSubscriptionPanel(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 48, 48, 48)
+            
+            // Stylish Pro Gradient Background
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
+                Color.parseColor("#2D1A3D"), // Deep Purple
+                Color.parseColor("#1C1326")  // Darker Purple
+            )).apply {
+                cornerRadius = 40f
+                setStroke(2, Color.parseColor("#6C2BD9")) // Purple border
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val proLabel = TextView(this).apply {
+            text = "PIE CONTROLS PRO"
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#B388FF"))
+            setPadding(0, 0, 0, 16)
+        }
+
+        val title = TextView(this).apply {
+            text = "Unlock All Features"
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, 8)
+        }
+
+        val desc = TextView(this).apply {
+            text = "Get unlimited custom themes, more tiles, and remove all restrictions."
+            textSize = 12f
+            setTextColor(Color.parseColor("#D1C4E9"))
+            setPadding(0, 0, 0, 32)
+        }
+        
+        val manageBtn = Button(this).apply {
+            text = "Manage Subscription"
+            setBackgroundColor(Color.parseColor("#6C2BD9"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "Billing system will be connected here!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        card.addView(proLabel)
+        card.addView(title)
+        card.addView(desc)
+        card.addView(manageBtn)
+        return card
+    }
 }
 
 // =======================================================================
-// VISIBLE BUBBLE PHYSICS ENGINE (Color tuned with soft specular sheen)
+// VISIBLE BUBBLE PHYSICS ENGINE
 // =======================================================================
 
 class BubbleBackgroundView(context: Context) : View(context) {
@@ -591,20 +691,17 @@ class BubbleBackgroundView(context: Context) : View(context) {
     
     private val bubbles = mutableListOf<Bubble>()
     
-    // Translucent dark slate fill
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#181822")
         style = Paint.Style.FILL
     }
     
-    // Crisp metallic stroke
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#38384C")
         style = Paint.Style.STROKE
         strokeWidth = 3.5f
     }
 
-    // Specular highlight to give bubbles physical depth
     private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#18FFFFFF")
         style = Paint.Style.FILL
@@ -676,7 +773,6 @@ class BubbleBackgroundView(context: Context) : View(context) {
                 }
             }
 
-            // Draw bubble body, border, and light glint
             canvas.drawCircle(b.x, b.y, b.r, fillPaint)
             canvas.drawCircle(b.x, b.y, b.r, strokePaint)
             canvas.drawCircle(b.x - b.r * 0.32f, b.y - b.r * 0.32f, b.r * 0.22f, sheenPaint)
