@@ -7,7 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -21,6 +23,7 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import java.util.Collections
+import kotlin.math.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -47,8 +50,17 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
 
-        val rootScroll = ScrollView(this).apply {
+        // --- NEW: DYNAMIC BACKGROUND ROOT FRAME ---
+        val rootFrame = FrameLayout(this).apply {
             setBackgroundColor(Color.parseColor("#09090B"))
+        }
+
+        // Add the animated bubbles to the very back
+        val bubbleBg = BubbleBackgroundView(this)
+        rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        // The scroll view goes ON TOP of the bubbles (with a transparent background)
+        val rootScroll = ScrollView(this).apply {
             isFillViewport = true
         }
 
@@ -58,21 +70,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         mainLayout.addView(createTopControlPanel())
-        
         mainLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
         mainLayout.addView(createThemeStylePanel())
-
         mainLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
         mainLayout.addView(createAppSelectPanel())
-        
         mainLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         mainLayout.addView(createSlidersPanel())
-        
         mainLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
         mainLayout.addView(createDragDropPanel())
 
         rootScroll.addView(mainLayout)
-        setContentView(rootScroll)
+        rootFrame.addView(rootScroll)
+        setContentView(rootFrame)
+        
         loadTiles()
     }
 
@@ -103,9 +113,7 @@ class MainActivity : AppCompatActivity() {
         
         val masterSwitch = SwitchCompat(this).apply {
             isChecked = prefs.getBoolean("PREF_SERVICE_ENABLED", true)
-            setOnCheckedChangeListener { _, isChecked ->
-                prefs.edit().putBoolean("PREF_SERVICE_ENABLED", isChecked).apply()
-            }
+            setOnCheckedChangeListener { _, isChecked -> prefs.edit().putBoolean("PREF_SERVICE_ENABLED", isChecked).apply() }
         }
         switchRow.addView(titleTextLayout)
         switchRow.addView(masterSwitch)
@@ -239,12 +247,7 @@ class MainActivity : AppCompatActivity() {
         }
         
         val currentAppName = prefs.getString("PREF_CUSTOM_APP_NAME", "YouTube")
-        selectedAppLabel = TextView(this).apply {
-            text = "Selected: $currentAppName"
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            setPadding(0, 0, 0, 32)
-        }
+        selectedAppLabel = TextView(this).apply { text = "Selected: $currentAppName"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 32) }
         
         val selectBtn = Button(this).apply {
             text = "Choose App"
@@ -262,7 +265,6 @@ class MainActivity : AppCompatActivity() {
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
         val resolveInfos = pm.queryIntentActivities(intent, 0)
-        
         val appList = resolveInfos.map { Pair(it.loadLabel(pm).toString(), it.activityInfo.packageName) }.sortedBy { it.first }
         val names = appList.map { it.first }.toTypedArray()
 
@@ -290,7 +292,6 @@ class MainActivity : AppCompatActivity() {
         return row
     }
 
-    // --- UPGRADED SLIDERS PANEL ---
     private fun createSlidersPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -298,19 +299,15 @@ class MainActivity : AppCompatActivity() {
             background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
         }
 
-        // Helper function for creating the Label + Percentage layout
         fun createLabelRow(title: String, percentView: TextView?): LinearLayout {
             return LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(0, 16, 0, 16)
-                addView(TextView(this@MainActivity).apply { 
-                    text = title; setTextColor(Color.WHITE); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) 
-                })
+                addView(TextView(this@MainActivity).apply { text = title; setTextColor(Color.WHITE); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) })
                 if (percentView != null) addView(percentView)
             }
         }
 
-        // 1. HEIGHT SLIDER
         val heightPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD }
         val heightSlider = SeekBar(this).apply {
             max = 1200
@@ -328,10 +325,9 @@ class MainActivity : AppCompatActivity() {
         panel.addView(createLabelRow("Bar Height", heightPercent))
         panel.addView(heightSlider)
 
-        // 2. WIDTH SLIDER
         val widthPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; setPadding(0,24,0,0) }
         val widthSlider = SeekBar(this).apply {
-            max = 100 // 0 to 100 equates to a width between 20px and 120px
+            max = 100 
             progress = prefs.getInt("PREF_BAR_WIDTH", 55) - 20
             widthPercent.text = "$progress%"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -346,7 +342,6 @@ class MainActivity : AppCompatActivity() {
         panel.addView(createLabelRow("Bar Width", widthPercent))
         panel.addView(widthSlider)
 
-        // 3. OPACITY (TRANSPARENCY) SLIDER
         val opacityPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; setPadding(0,24,0,0) }
         val opacitySlider = SeekBar(this).apply {
             max = 100
@@ -361,10 +356,9 @@ class MainActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        panel.addView(createLabelRow("Bar Opacity (Transparency)", opacityPercent))
+        panel.addView(createLabelRow("Bar Opacity", opacityPercent))
         panel.addView(opacitySlider)
 
-        // 4. POSITION SLIDER (No percentage)
         val posSlider = SeekBar(this).apply {
             max = 1000 
             progress = prefs.getInt("PREF_BAR_POS", 0) + 500
@@ -442,5 +436,100 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveTileOrder() {
         prefs.edit().putString("PREF_TILE_ACTIONS", currentTiles.joinToString(",") { it.id.toString() }).apply()
+    }
+}
+
+// =======================================================================
+// NEW: DYNAMIC BUBBLE BACKGROUND ENGINE
+// =======================================================================
+
+class BubbleBackgroundView(context: Context) : View(context) {
+
+    private data class Bubble(var x: Float, var y: Float, var r: Float, var dx: Float, var dy: Float)
+    
+    private val bubbles = mutableListOf<Bubble>()
+    
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#050505") // Deep true black for depth
+        style = Paint.Style.FILL
+    }
+    
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#1A1A1E") // Subtle grey rim so they are visible
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        bubbles.clear()
+        
+        val numberOfBubbles = 15
+        
+        for (i in 0 until numberOfBubbles) {
+            val radius = (50..160).random().toFloat()
+            val x = (radius.toInt()..(w - radius.toInt())).random().toFloat()
+            val y = (radius.toInt()..(h - radius.toInt())).random().toFloat()
+            
+            // Generate a very slow, elegant drift speed
+            val dx = (listOf(-1f, 1f).random()) * (0.3f + Math.random().toFloat() * 1.2f)
+            val dy = (listOf(-1f, 1f).random()) * (0.3f + Math.random().toFloat() * 1.2f)
+            
+            bubbles.add(Bubble(x, y, radius, dx, dy))
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        for (i in bubbles.indices) {
+            val b = bubbles[i]
+            
+            // Move bubbles
+            b.x += b.dx
+            b.y += b.dy
+
+            // Smooth bounce off screen edges
+            if (b.x - b.r < 0) { b.x = b.r; b.dx *= -1 }
+            if (b.x + b.r > width) { b.x = width - b.r; b.dx *= -1 }
+            if (b.y - b.r < 0) { b.y = b.r; b.dy *= -1 }
+            if (b.y + b.r > height) { b.y = height - b.r; b.dy *= -1 }
+
+            // Elegant, slow collisions with other bubbles
+            for (j in i + 1 until bubbles.size) {
+                val b2 = bubbles[j]
+                val distSq = (b.x - b2.x).pow(2) + (b.y - b2.y).pow(2)
+                val minDist = b.r + b2.r
+                
+                if (distSq < minDist * minDist) {
+                    // Swap directions for a smooth bounce
+                    val tempDx = b.dx
+                    val tempDy = b.dy
+                    b.dx = b2.dx
+                    b.dy = b2.dy
+                    b2.dx = tempDx
+                    b2.dy = tempDy
+                    
+                    // Gently push them apart so they don't get stuck glued together
+                    val dist = sqrt(distSq)
+                    val overlap = minDist - dist
+                    if(dist > 0) {
+                        val nx = (b.x - b2.x) / dist
+                        val ny = (b.y - b2.y) / dist
+                        b.x += nx * (overlap / 2f)
+                        b.y += ny * (overlap / 2f)
+                        b2.x -= nx * (overlap / 2f)
+                        b2.y -= ny * (overlap / 2f)
+                    }
+                }
+            }
+
+            // Draw the bubble shadow/fill and outline
+            canvas.drawCircle(b.x, b.y, b.r, fillPaint)
+            canvas.drawCircle(b.x, b.y, b.r, strokePaint)
+        }
+
+        // Loop the animation at 60fps
+        invalidate()
     }
 }
