@@ -37,6 +37,10 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         
         edgeHandle = View(this).apply {
             visibility = if (isEnabled) View.VISIBLE else View.GONE
+            
+            // Applies the exact opacity percentage instantly
+            alpha = prefs.getInt("PREF_BAR_ALPHA", 100) / 100f 
+            
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#40FFFFFF"))
                 cornerRadii = floatArrayOf(45f, 45f, 0f, 0f, 0f, 0f, 45f, 45f)
@@ -71,9 +75,12 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
     private fun getEdgeParams(): WindowManager.LayoutParams {
         val barHeight = prefs.getInt("PREF_BAR_HEIGHT", 750)
         val barPos = prefs.getInt("PREF_BAR_POS", 0)
+        
+        // Dynamically reads the Width value
+        val barWidth = prefs.getInt("PREF_BAR_WIDTH", 55)
 
         return WindowManager.LayoutParams(
-            55,
+            barWidth,
             barHeight,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -85,19 +92,24 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == "PREF_BAR_HEIGHT" || key == "PREF_BAR_POS") {
+        // Redraws layout if Height, Position, OR Width is changed
+        if (key == "PREF_BAR_HEIGHT" || key == "PREF_BAR_POS" || key == "PREF_BAR_WIDTH") {
             if (::edgeHandle.isInitialized) {
                 windowManager.updateViewLayout(edgeHandle, getEdgeParams())
             }
         }
         
-        // NEW: Instantly hide or show the edge bar when toggled from the app!
+        // Instantly fades the bar if Opacity is changed
+        if (key == "PREF_BAR_ALPHA") {
+             if (::edgeHandle.isInitialized) {
+                 edgeHandle.alpha = prefs.getInt("PREF_BAR_ALPHA", 100) / 100f
+             }
+        }
+        
         if (key == "PREF_SERVICE_ENABLED") {
             if (::edgeHandle.isInitialized) {
                 val isEnabled = prefs.getBoolean("PREF_SERVICE_ENABLED", true)
                 edgeHandle.visibility = if (isEnabled) View.VISIBLE else View.GONE
-                
-                // If the user turned it off while the pie menu was open, forcefully close it
                 if (!isEnabled) hidePieOverlay()
             }
         }
