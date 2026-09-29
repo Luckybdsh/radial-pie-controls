@@ -19,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import java.util.Collections
 
 class MainActivity : AppCompatActivity() {
@@ -56,7 +57,6 @@ class MainActivity : AppCompatActivity() {
 
         mainLayout.addView(createTopControlPanel())
         
-        // NEW: Visual Theme Selector
         mainLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
         mainLayout.addView(createThemeStylePanel())
 
@@ -87,6 +87,30 @@ class MainActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) }
         }
 
+        // --- NEW: MASTER ON/OFF SWITCH ---
+        val switchRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 32)
+        }
+        val titleTextLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        titleTextLayout.addView(TextView(this).apply { text = "Pie Controls"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
+        titleTextLayout.addView(TextView(this).apply { text = "Quick toggle edge bar On or Off"; textSize = 11f; setTextColor(Color.parseColor("#8E8E93")) })
+        
+        val masterSwitch = SwitchCompat(this).apply {
+            isChecked = prefs.getBoolean("PREF_SERVICE_ENABLED", true)
+            setOnCheckedChangeListener { _, isChecked ->
+                prefs.edit().putBoolean("PREF_SERVICE_ENABLED", isChecked).apply()
+            }
+        }
+        switchRow.addView(titleTextLayout)
+        switchRow.addView(masterSwitch)
+        panel.addView(switchRow)
+
+        // --- STATUS & PERMISSIONS ---
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
