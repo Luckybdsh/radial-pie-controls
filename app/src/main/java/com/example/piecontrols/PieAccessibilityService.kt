@@ -33,7 +33,10 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
     }
 
     private fun setupEdgeHandle() {
+        val isEnabled = prefs.getBoolean("PREF_SERVICE_ENABLED", true)
+        
         edgeHandle = View(this).apply {
+            visibility = if (isEnabled) View.VISIBLE else View.GONE
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#40FFFFFF"))
                 cornerRadii = floatArrayOf(45f, 45f, 0f, 0f, 0f, 0f, 45f, 45f)
@@ -87,6 +90,17 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
                 windowManager.updateViewLayout(edgeHandle, getEdgeParams())
             }
         }
+        
+        // NEW: Instantly hide or show the edge bar when toggled from the app!
+        if (key == "PREF_SERVICE_ENABLED") {
+            if (::edgeHandle.isInitialized) {
+                val isEnabled = prefs.getBoolean("PREF_SERVICE_ENABLED", true)
+                edgeHandle.visibility = if (isEnabled) View.VISIBLE else View.GONE
+                
+                // If the user turned it off while the pie menu was open, forcefully close it
+                if (!isEnabled) hidePieOverlay()
+            }
+        }
     }
 
     private fun showPieOverlay(x: Float, y: Float) {
@@ -126,7 +140,6 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             6 -> {
                 try {
-                    // Reads the custom package name you typed in the app
                     val customPkg = prefs.getString("PREF_CUSTOM_APP_PKG", "com.google.android.youtube") ?: "com.google.android.youtube"
                     val intent = packageManager.getLaunchIntentForPackage(customPkg)
                     
