@@ -20,8 +20,12 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.Collections
 
 class MainActivity : AppCompatActivity() {
@@ -55,6 +59,81 @@ class MainActivity : AppCompatActivity() {
 
     data class TileData(val id: Int, val name: String)
 
+    // =======================================================================
+    // BACKUP & RESTORE ENGINES (JSON Serializers)
+    // =======================================================================
+
+    private val backupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let { performBackup(it) }
+    }
+
+    private val restoreLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { performRestore(it) }
+    }
+
+    private fun performBackup(uri: Uri) {
+        try {
+            val allPrefs = prefs.all
+            val jsonObject = JSONObject()
+            for ((key, value) in allPrefs) {
+                jsonObject.put(key, value)
+            }
+            
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(jsonObject.toString().toByteArray())
+            }
+            Toast.makeText(this, "Backup saved successfully!", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Backup failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun performRestore(uri: Uri) {
+        try {
+            val stringBuilder = StringBuilder()
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    var line: String? = reader.readLine()
+                    while (line != null) {
+                        stringBuilder.append(line)
+                        line = reader.readLine()
+                    }
+                }
+            }
+            
+            val jsonObject = JSONObject(stringBuilder.toString())
+            val editor = prefs.edit()
+            
+            val keys = jsonObject.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val value = jsonObject.get(key)
+                when (value) {
+                    is Boolean -> editor.putBoolean(key, value)
+                    is Int -> editor.putInt(key, value)
+                    is String -> editor.putString(key, value)
+                    is Float -> editor.putFloat(key, value)
+                    is Long -> editor.putLong(key, value)
+                }
+            }
+            editor.apply()
+            
+            Toast.makeText(this, "Backup restored! Restarting app...", Toast.LENGTH_SHORT).show()
+            
+            // Instantly restart the activity to visually apply all the loaded settings
+            val intent = intent
+            finish()
+            startActivity(intent)
+            
+        } catch (e: Exception) {
+            Toast.makeText(this, "Restore failed: Invalid file", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // =======================================================================
+    // LIFECYCLE & UI SETUP
+    // =======================================================================
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
@@ -63,25 +142,21 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(Color.parseColor("#09090B"))
         }
 
-        // 1. Dynamic Physics Background
         val bubbleBg = BubbleBackgroundView(this)
         rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        // 2. Tab 1: HOME PAGE (Now contains all customization!)
+        // HOME PAGE
         homeScroll = ScrollView(this).apply {
             isFillViewport = true
             setPadding(48, 64, 48, 240) 
             clipToPadding = false
         }
-        val homeLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        val homeLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         homeLayout.addView(createTopControlPanel())
         homeLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
         homeLayout.addView(createThemeStylePanel())
         homeLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
         homeLayout.addView(createAppSelectPanel())
-        // MOVED BACK TO HOME:
         homeLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         homeLayout.addView(createSlidersPanel())
         homeLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
@@ -90,25 +165,23 @@ class MainActivity : AppCompatActivity() {
         homeScroll.addView(homeLayout)
         rootFrame.addView(homeScroll)
 
-        // 3. Tab 2: SETTINGS PAGE (Backup, Restore, Subscription)
+        // SETTINGS PAGE
         settingsScroll = ScrollView(this).apply {
             isFillViewport = true
             visibility = View.GONE
             setPadding(48, 64, 48, 240)
             clipToPadding = false
         }
-        val settingsLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        val settingsLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         settingsLayout.addView(createSectionTitle("DATA MANAGEMENT", "Export or import your layout"))
-        settingsLayout.addView(createBackupRestorePanel())
+        settingsLayout.addView(createBackupRestorePanel()) // Connects to the new engine!
         settingsLayout.addView(createSectionTitle("ACCOUNT & BILLING", "Manage premium features"))
         settingsLayout.addView(createSubscriptionPanel())
         
         settingsScroll.addView(settingsLayout)
         rootFrame.addView(settingsScroll)
 
-        // 4. Floating Bottom Navigation Bar
+        // Floating Bottom Navigation Bar
         rootFrame.addView(createBottomNavBar())
 
         setContentView(rootFrame)
@@ -142,10 +215,7 @@ class MainActivity : AppCompatActivity() {
                 setStroke(2, Color.parseColor("#2E2E3C"))
                 cornerRadius = 64f
             }
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
         homeNavTab = createNavTab("⌂", "Home", true) { switchTab(isHome = true) }
@@ -202,25 +272,17 @@ class MainActivity : AppCompatActivity() {
         if (isHome) {
             homeScroll.visibility = View.VISIBLE
             settingsScroll.visibility = View.GONE
-
             homeNavTab.background = GradientDrawable().apply { setColor(Color.parseColor("#202738")); cornerRadius = 48f }
             settingsNavTab.background = null
-
-            homeNavIcon.setTextColor(Color.parseColor("#2979FF"))
-            homeNavText.setTextColor(Color.parseColor("#2979FF"))
-            settingsNavIcon.setTextColor(Color.parseColor("#8E8E93"))
-            settingsNavText.setTextColor(Color.parseColor("#8E8E93"))
+            homeNavIcon.setTextColor(Color.parseColor("#2979FF")); homeNavText.setTextColor(Color.parseColor("#2979FF"))
+            settingsNavIcon.setTextColor(Color.parseColor("#8E8E93")); settingsNavText.setTextColor(Color.parseColor("#8E8E93"))
         } else {
             homeScroll.visibility = View.GONE
             settingsScroll.visibility = View.VISIBLE
-
             settingsNavTab.background = GradientDrawable().apply { setColor(Color.parseColor("#202738")); cornerRadius = 48f }
             homeNavTab.background = null
-
-            settingsNavIcon.setTextColor(Color.parseColor("#2979FF"))
-            settingsNavText.setTextColor(Color.parseColor("#2979FF"))
-            homeNavIcon.setTextColor(Color.parseColor("#8E8E93"))
-            homeNavText.setTextColor(Color.parseColor("#8E8E93"))
+            settingsNavIcon.setTextColor(Color.parseColor("#2979FF")); settingsNavText.setTextColor(Color.parseColor("#2979FF"))
+            homeNavIcon.setTextColor(Color.parseColor("#8E8E93")); homeNavText.setTextColor(Color.parseColor("#8E8E93"))
         }
     }
 
@@ -358,17 +420,9 @@ class MainActivity : AppCompatActivity() {
     private fun updateThemeSelectionUI(selectedTheme: String) {
         themeCards.forEach { (themeName, card) ->
             if (themeName == selectedTheme) {
-                card.background = GradientDrawable().apply { 
-                    setColor(Color.parseColor("#1C1C22"))
-                    setStroke(5, Color.parseColor("#2979FF"))
-                    cornerRadius = 32f 
-                }
+                card.background = GradientDrawable().apply { setColor(Color.parseColor("#1C1C22")); setStroke(5, Color.parseColor("#2979FF")); cornerRadius = 32f }
             } else {
-                card.background = GradientDrawable().apply { 
-                    setColor(Color.parseColor("#121214"))
-                    setStroke(0, Color.TRANSPARENT)
-                    cornerRadius = 32f 
-                }
+                card.background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); setStroke(0, Color.TRANSPARENT); cornerRadius = 32f }
             }
         }
     }
@@ -573,8 +627,7 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putString("PREF_TILE_ACTIONS", currentTiles.joinToString(",") { it.id.toString() }).apply()
     }
 
-
-    // --- NEW: SETTINGS & BACKUP PANELS ---
+    // --- SETTINGS & BACKUP PANELS ---
 
     private fun createBackupRestorePanel(): View {
         val panel = LinearLayout(this).apply {
@@ -598,7 +651,8 @@ class MainActivity : AppCompatActivity() {
             addView(textLayout)
 
             setOnClickListener {
-                Toast.makeText(this@MainActivity, "Backup system will be implemented here!", Toast.LENGTH_SHORT).show()
+                // Launches the Android file saver!
+                backupLauncher.launch("pie_backup.json")
             }
         }
 
@@ -616,7 +670,8 @@ class MainActivity : AppCompatActivity() {
             addView(textLayout)
 
             setOnClickListener {
-                Toast.makeText(this@MainActivity, "Restore system will be implemented here!", Toast.LENGTH_SHORT).show()
+                // Launches the Android file picker!
+                restoreLauncher.launch(arrayOf("application/json", "*/*"))
             }
         }
 
@@ -629,54 +684,27 @@ class MainActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(48, 48, 48, 48)
-            
-            // Stylish Pro Gradient Background
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
-                Color.parseColor("#2D1A3D"), // Deep Purple
-                Color.parseColor("#1C1326")  // Darker Purple
+                Color.parseColor("#2D1A3D"), Color.parseColor("#1C1326") 
             )).apply {
                 cornerRadius = 40f
-                setStroke(2, Color.parseColor("#6C2BD9")) // Purple border
+                setStroke(2, Color.parseColor("#6C2BD9")) 
             }
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
 
-        val proLabel = TextView(this).apply {
-            text = "PIE CONTROLS PRO"
-            textSize = 10f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.parseColor("#B388FF"))
-            setPadding(0, 0, 0, 16)
-        }
-
-        val title = TextView(this).apply {
-            text = "Unlock All Features"
-            textSize = 20f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            setPadding(0, 0, 0, 8)
-        }
-
-        val desc = TextView(this).apply {
-            text = "Get unlimited custom themes, more tiles, and remove all restrictions."
-            textSize = 12f
-            setTextColor(Color.parseColor("#D1C4E9"))
-            setPadding(0, 0, 0, 32)
-        }
+        val proLabel = TextView(this).apply { text = "PIE CONTROLS PRO"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#B388FF")); setPadding(0, 0, 0, 16) }
+        val title = TextView(this).apply { text = "Unlock All Features"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, 0, 8) }
+        val desc = TextView(this).apply { text = "Get unlimited custom themes, more tiles, and remove all restrictions."; textSize = 12f; setTextColor(Color.parseColor("#D1C4E9")); setPadding(0, 0, 0, 32) }
         
         val manageBtn = Button(this).apply {
             text = "Manage Subscription"
             setBackgroundColor(Color.parseColor("#6C2BD9"))
             setTextColor(Color.WHITE)
-            setOnClickListener {
-                Toast.makeText(this@MainActivity, "Billing system will be connected here!", Toast.LENGTH_SHORT).show()
-            }
+            setOnClickListener { Toast.makeText(this@MainActivity, "Billing system will be connected here!", Toast.LENGTH_SHORT).show() }
         }
 
-        card.addView(proLabel)
-        card.addView(title)
-        card.addView(desc)
-        card.addView(manageBtn)
+        card.addView(proLabel); card.addView(title); card.addView(desc); card.addView(manageBtn)
         return card
     }
 }
@@ -688,44 +716,23 @@ class MainActivity : AppCompatActivity() {
 class BubbleBackgroundView(context: Context) : View(context) {
 
     private data class Bubble(var x: Float, var y: Float, var r: Float, var dx: Float, var dy: Float)
-    
     private val bubbles = mutableListOf<Bubble>()
     
-    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#181822")
-        style = Paint.Style.FILL
-    }
-    
-    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#38384C")
-        style = Paint.Style.STROKE
-        strokeWidth = 3.5f
-    }
-
-    private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#18FFFFFF")
-        style = Paint.Style.FILL
-    }
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#181822"); style = Paint.Style.FILL }
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#38384C"); style = Paint.Style.STROKE; strokeWidth = 3.5f }
+    private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#18FFFFFF"); style = Paint.Style.FILL }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         bubbles.clear()
-        
         if (w == 0 || h == 0) return
         
-        val numberOfBubbles = 15
-        
-        for (i in 0 until numberOfBubbles) {
+        for (i in 0 until 15) {
             val radius = 55f + (Math.random() * 110f).toFloat()
             val x = radius + (Math.random() * (w - 2f * radius)).toFloat()
             val y = radius + (Math.random() * (h - 2f * radius)).toFloat()
-            
-            val dirX = if (Math.random() > 0.5) 1f else -1f
-            val dirY = if (Math.random() > 0.5) 1f else -1f
-            
-            val dx = dirX * (0.35f + (Math.random() * 1.1f).toFloat())
-            val dy = dirY * (0.35f + (Math.random() * 1.1f).toFloat())
-            
+            val dx = (if (Math.random() > 0.5) 1f else -1f) * (0.35f + (Math.random() * 1.1f).toFloat())
+            val dy = (if (Math.random() > 0.5) 1f else -1f) * (0.35f + (Math.random() * 1.1f).toFloat())
             bubbles.add(Bubble(x, y, radius, dx, dy))
         }
     }
@@ -735,7 +742,6 @@ class BubbleBackgroundView(context: Context) : View(context) {
 
         for (i in bubbles.indices) {
             val b = bubbles[i]
-            
             b.x += b.dx
             b.y += b.dy
 
@@ -746,29 +752,22 @@ class BubbleBackgroundView(context: Context) : View(context) {
 
             for (j in i + 1 until bubbles.size) {
                 val b2 = bubbles[j]
-                
                 val diffX = b.x - b2.x
                 val diffY = b.y - b2.y
                 val distSq = diffX * diffX + diffY * diffY
                 val minDist = b.r + b2.r
                 
                 if (distSq < minDist * minDist) {
-                    val tempDx = b.dx
-                    val tempDy = b.dy
-                    b.dx = b2.dx
-                    b.dy = b2.dy
-                    b2.dx = tempDx
-                    b2.dy = tempDy
+                    val tempDx = b.dx; val tempDy = b.dy
+                    b.dx = b2.dx; b.dy = b2.dy
+                    b2.dx = tempDx; b2.dy = tempDy
                     
                     val dist = Math.sqrt(distSq.toDouble()).toFloat()
                     val overlap = minDist - dist
                     if (dist > 0f) {
-                        val nx = diffX / dist
-                        val ny = diffY / dist
-                        b.x += nx * (overlap / 2f)
-                        b.y += ny * (overlap / 2f)
-                        b2.x -= nx * (overlap / 2f)
-                        b2.y -= ny * (overlap / 2f)
+                        val nx = diffX / dist; val ny = diffY / dist
+                        b.x += nx * (overlap / 2f); b.y += ny * (overlap / 2f)
+                        b2.x -= nx * (overlap / 2f); b2.y -= ny * (overlap / 2f)
                     }
                 }
             }
@@ -777,7 +776,6 @@ class BubbleBackgroundView(context: Context) : View(context) {
             canvas.drawCircle(b.x, b.y, b.r, strokePaint)
             canvas.drawCircle(b.x - b.r * 0.32f, b.y - b.r * 0.32f, b.r * 0.22f, sheenPaint)
         }
-
         invalidate()
     }
 }
