@@ -24,7 +24,7 @@ class PieMenuView(
     private var animProgress = 0f
     
     private var visualTheme = "Neon"
-    private var isCenterActive = false // Tracks if thumb is hovering the close button
+    private var isCenterActive = false 
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
@@ -105,7 +105,7 @@ class PieMenuView(
         startX = x
         startY = y
         activeSlice = -1
-        isCenterActive = false // Reset close button
+        isCenterActive = false
 
         triggerHaptic(25L)
 
@@ -129,7 +129,7 @@ class PieMenuView(
         super.onDraw(canvas)
         if (animProgress <= 0f) return
 
-        val safeProgress = animProgress.coerceIn(0f, 1f) // Prevents alpha values crashing from overshoot
+        val safeProgress = animProgress.coerceIn(0f, 1f)
 
         bgDimPaint.alpha = (120 * safeProgress).toInt()
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgDimPaint)
@@ -137,7 +137,10 @@ class PieMenuView(
         canvas.save()
         canvas.rotate(-45f * (1f - safeProgress), startX, startY)
 
-        val totalSpan = 165f
+        // ---------------------------------------------------------
+        // FIXED MATH: PERFECT 180-DEGREE SYMMETRICAL SEMI-CIRCLE
+        // ---------------------------------------------------------
+        val totalSpan = 180f 
         val gapAngle = 4f 
         val sweepAngle = totalSpan / slices.size.toFloat()
 
@@ -154,7 +157,8 @@ class PieMenuView(
             val currentOuterR = if (isSelected) baseOuterR + 40f else baseOuterR
             val currentInnerR = if (isSelected) baseInnerR - 15f else baseInnerR
 
-            val startAngle = 100f + (i.toFloat() * sweepAngle)
+            // 90f perfectly anchors the start of the fan straight down at 6 o'clock
+            val startAngle = 90f + (i.toFloat() * sweepAngle)
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
 
@@ -219,9 +223,7 @@ class PieMenuView(
         }
         canvas.restore()
 
-        // -------------------------------------------------
-        // NEW: CENTER CLOSE BUTTON (Replaces old static handle)
-        // -------------------------------------------------
+        // CENTER CLOSE BUTTON
         val baseCenterR = 90f * animProgress
         val centerR = if (isCenterActive) baseCenterR + 15f else baseCenterR
         
@@ -234,7 +236,6 @@ class PieMenuView(
             }
         }
         
-        // Draws the semi-circle origin button
         canvas.drawCircle(startX, startY, centerR, centerPaint)
 
         val crossPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -246,10 +247,9 @@ class PieMenuView(
         }
         
         val crossSize = 14f * safeProgress
-        val crossCx = startX - 45f // Offset inward so it's fully visible on screen
+        val crossCx = startX - 45f 
         val crossCy = startY
         
-        // Draws the explicit 'X' icon
         canvas.drawLine(crossCx - crossSize, crossCy - crossSize, crossCx + crossSize, crossCy + crossSize, crossPaint)
         canvas.drawLine(crossCx - crossSize, crossCy + crossSize, crossCx + crossSize, crossCy - crossSize, crossPaint)
     }
@@ -307,18 +307,18 @@ class PieMenuView(
 
         when (event.action) {
             MotionEvent.ACTION_MOVE -> {
-                // If thumb is pushed OUT into the tiles (distance > 110)
                 if (dist > 110.0) { 
                     if (isCenterActive) {
                         isCenterActive = false
-                        invalidate() // Turn off the red 'X' center button
+                        invalidate() 
                     }
                     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
                     if (angle < 0.0) angle += 360.0
 
-                    if (angle in 100.0..265.0) {
-                        val normalized = angle - 100.0
-                        val sliceIndex = (normalized / (165.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
+                    // FIXED TOUCH MATH: Triggers accurately across the perfect 180 degree left-facing arc
+                    if (angle in 90.0..270.0) {
+                        val normalized = angle - 90.0
+                        val sliceIndex = (normalized / (180.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
                             triggerHaptic(12L) 
@@ -331,15 +331,14 @@ class PieMenuView(
                         }
                     }
                 } else {
-                    // Thumb pulled BACK into the center (distance < 110)
                     if (activeSlice != -1) {
                         activeSlice = -1
-                        invalidate() // Turn off active tiles
+                        invalidate()
                     }
                     if (!isCenterActive) {
                         isCenterActive = true
-                        triggerHaptic(15L) // Light haptic tick indicating closure area
-                        invalidate() // Light up the red 'X' button
+                        triggerHaptic(15L) 
+                        invalidate() 
                     }
                 }
             }
@@ -348,7 +347,7 @@ class PieMenuView(
                     triggerHaptic(18L)
                     onActionSelected(slices[activeSlice].id)
                 } else if (isCenterActive) {
-                    triggerHaptic(20L) // Distinct haptic pop on manual close
+                    triggerHaptic(20L) 
                 }
                 onDismiss()
             }
