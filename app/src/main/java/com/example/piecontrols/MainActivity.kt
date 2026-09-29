@@ -34,7 +34,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var selectedAppLabel: TextView
 
-    // Map to hold our theme cards so we can update their colors dynamically
     private val themeCards = mutableMapOf<String, LinearLayout>()
 
     private val allActions = mapOf(
@@ -175,7 +174,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- UPDATED: Dynamic Theme Selection Panel ---
     private fun createThemeStylePanel(): View {
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }
@@ -195,7 +193,7 @@ class MainActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }
                 setOnClickListener {
                     prefs.edit().putString("PREF_VISUAL_STYLE", style.third).apply()
-                    updateThemeSelectionUI(style.third) // Instantly update colors
+                    updateThemeSelectionUI(style.third) 
                 }
             }
             
@@ -209,23 +207,20 @@ class MainActivity : AppCompatActivity() {
             row.addView(card)
         }
         
-        updateThemeSelectionUI(currentTheme) // Set initial highlighting when app loads
+        updateThemeSelectionUI(currentTheme) 
         scroll.addView(row)
         return scroll
     }
 
-    // Updates the borders and backgrounds of the theme boxes
     private fun updateThemeSelectionUI(selectedTheme: String) {
         themeCards.forEach { (themeName, card) ->
             if (themeName == selectedTheme) {
-                // ACTIVE STATE: Brighter background + Blue Accent Border
                 card.background = GradientDrawable().apply { 
                     setColor(Color.parseColor("#1C1C22"))
                     setStroke(5, Color.parseColor("#2979FF"))
                     cornerRadius = 32f 
                 }
             } else {
-                // INACTIVE STATE: Standard dark background, no border
                 card.background = GradientDrawable().apply { 
                     setColor(Color.parseColor("#121214"))
                     setStroke(0, Color.TRANSPARENT)
@@ -295,6 +290,7 @@ class MainActivity : AppCompatActivity() {
         return row
     }
 
+    // --- UPGRADED SLIDERS PANEL ---
     private fun createSlidersPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -302,32 +298,85 @@ class MainActivity : AppCompatActivity() {
             background = GradientDrawable().apply { setColor(Color.parseColor("#121214")); cornerRadius = 40f }
         }
 
-        val heightLabel = TextView(this).apply { text = "Bar Height"; setTextColor(Color.WHITE); setPadding(0, 0, 0, 16) }
+        // Helper function for creating the Label + Percentage layout
+        fun createLabelRow(title: String, percentView: TextView?): LinearLayout {
+            return LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 16, 0, 16)
+                addView(TextView(this@MainActivity).apply { 
+                    text = title; setTextColor(Color.WHITE); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) 
+                })
+                if (percentView != null) addView(percentView)
+            }
+        }
+
+        // 1. HEIGHT SLIDER
+        val heightPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD }
         val heightSlider = SeekBar(this).apply {
             max = 1200
             progress = prefs.getInt("PREF_BAR_HEIGHT", 750) - 200
+            heightPercent.text = "${(progress * 100 / max)}%"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { prefs.edit().putInt("PREF_BAR_HEIGHT", progress + 200).apply() }
+                override fun onProgressChanged(seekBar: SeekBar?, prog: Int, fromUser: Boolean) { 
+                    prefs.edit().putInt("PREF_BAR_HEIGHT", prog + 200).apply() 
+                    heightPercent.text = "${(prog * 100 / max)}%"
+                }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
+        panel.addView(createLabelRow("Bar Height", heightPercent))
+        panel.addView(heightSlider)
 
-        val posLabel = TextView(this).apply { text = "Bar Vertical Position"; setTextColor(Color.WHITE); setPadding(0, 48, 0, 16) }
+        // 2. WIDTH SLIDER
+        val widthPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; setPadding(0,24,0,0) }
+        val widthSlider = SeekBar(this).apply {
+            max = 100 // 0 to 100 equates to a width between 20px and 120px
+            progress = prefs.getInt("PREF_BAR_WIDTH", 55) - 20
+            widthPercent.text = "$progress%"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, prog: Int, fromUser: Boolean) { 
+                    prefs.edit().putInt("PREF_BAR_WIDTH", prog + 20).apply() 
+                    widthPercent.text = "$prog%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        panel.addView(createLabelRow("Bar Width", widthPercent))
+        panel.addView(widthSlider)
+
+        // 3. OPACITY (TRANSPARENCY) SLIDER
+        val opacityPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; setPadding(0,24,0,0) }
+        val opacitySlider = SeekBar(this).apply {
+            max = 100
+            progress = prefs.getInt("PREF_BAR_ALPHA", 100)
+            opacityPercent.text = "$progress%"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, prog: Int, fromUser: Boolean) { 
+                    prefs.edit().putInt("PREF_BAR_ALPHA", prog).apply() 
+                    opacityPercent.text = "$prog%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        panel.addView(createLabelRow("Bar Opacity (Transparency)", opacityPercent))
+        panel.addView(opacitySlider)
+
+        // 4. POSITION SLIDER (No percentage)
         val posSlider = SeekBar(this).apply {
             max = 1000 
             progress = prefs.getInt("PREF_BAR_POS", 0) + 500
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { prefs.edit().putInt("PREF_BAR_POS", progress - 500).apply() }
+                override fun onProgressChanged(seekBar: SeekBar?, prog: Int, fromUser: Boolean) { prefs.edit().putInt("PREF_BAR_POS", prog - 500).apply() }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-
-        panel.addView(heightLabel)
-        panel.addView(heightSlider)
-        panel.addView(posLabel)
+        panel.addView(createLabelRow("Vertical Position", null).apply { setPadding(0, 24, 0, 16) })
         panel.addView(posSlider)
+
         return panel
     }
 
