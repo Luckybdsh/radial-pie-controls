@@ -3,17 +3,15 @@
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- NEW PERMISSION: Required to load installed apps and their icons -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
+    <!-- We removed roundIcon entirely to prevent conflicts! -->
     <application
         android:allowBackup="true"
         android:icon="@drawable/app_logo" 
-        android:roundIcon="@drawable/app_logo"
         android:label="Pie Controls"
         android:supportsRtl="true"
         android:theme="@style/Theme.PieControls">
-
 
         <activity
             android:name=".MainActivity"
