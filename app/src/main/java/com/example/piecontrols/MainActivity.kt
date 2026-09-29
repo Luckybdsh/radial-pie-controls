@@ -38,6 +38,16 @@ class MainActivity : AppCompatActivity() {
 
     private val themeCards = mutableMapOf<String, LinearLayout>()
 
+    // Navigation views
+    private lateinit var homeScroll: ScrollView
+    private lateinit var settingsScroll: ScrollView
+    private lateinit var homeNavTab: LinearLayout
+    private lateinit var settingsNavTab: LinearLayout
+    private lateinit var homeNavIcon: TextView
+    private lateinit var homeNavText: TextView
+    private lateinit var settingsNavIcon: TextView
+    private lateinit var settingsNavText: TextView
+
     private val allActions = mapOf(
         0 to "Home", 1 to "Screenshot", 2 to "Back",
         3 to "Volume", 4 to "Recents", 5 to "Notifications", 6 to "Open App"
@@ -49,39 +59,52 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
 
-        // DYNAMIC BACKGROUND ROOT FRAME
         val rootFrame = FrameLayout(this).apply {
             setBackgroundColor(Color.parseColor("#09090B"))
         }
 
-        // Add the animated bubbles to the very back
+        // 1. Dynamic Physics Background
         val bubbleBg = BubbleBackgroundView(this)
         rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        // The scroll view goes ON TOP of the bubbles (with a transparent background)
-        val rootScroll = ScrollView(this).apply {
+        // 2. Tab 1: HOME PAGE
+        homeScroll = ScrollView(this).apply {
             isFillViewport = true
+            setPadding(48, 64, 48, 240) // Bottom padding ensures content isn't hidden by nav bar
+            clipToPadding = false
         }
-
-        val mainLayout = LinearLayout(this).apply {
+        val homeLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 64, 48, 64)
         }
+        homeLayout.addView(createTopControlPanel())
+        homeLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
+        homeLayout.addView(createThemeStylePanel())
+        homeLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
+        homeLayout.addView(createAppSelectPanel())
+        homeScroll.addView(homeLayout)
+        rootFrame.addView(homeScroll)
 
-        mainLayout.addView(createTopControlPanel())
-        mainLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
-        mainLayout.addView(createThemeStylePanel())
-        mainLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to change"))
-        mainLayout.addView(createAppSelectPanel())
-        mainLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
-        mainLayout.addView(createSlidersPanel())
-        mainLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
-        mainLayout.addView(createDragDropPanel())
+        // 3. Tab 2: SETTINGS PAGE
+        settingsScroll = ScrollView(this).apply {
+            isFillViewport = true
+            visibility = View.GONE
+            setPadding(48, 64, 48, 240)
+            clipToPadding = false
+        }
+        val settingsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        settingsLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
+        settingsLayout.addView(createSlidersPanel())
+        settingsLayout.addView(createSectionTitle("DRAG & DROP TILES", "Long press to move"))
+        settingsLayout.addView(createDragDropPanel())
+        settingsScroll.addView(settingsLayout)
+        rootFrame.addView(settingsScroll)
 
-        rootScroll.addView(mainLayout)
-        rootFrame.addView(rootScroll)
+        // 4. Floating Bottom Navigation Bar
+        rootFrame.addView(createBottomNavBar())
+
         setContentView(rootFrame)
-        
         loadTiles()
     }
 
@@ -89,6 +112,124 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refreshPermissionStates()
     }
+
+    // --- BOTTOM NAVIGATION BAR ---
+
+    private fun createBottomNavBar(): View {
+        val navContainer = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM
+                setMargins(48, 0, 48, 48)
+            }
+        }
+
+        val pillBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(20, 16, 20, 16)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#181820"))
+                setStroke(2, Color.parseColor("#2E2E3C"))
+                cornerRadius = 64f
+            }
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        // Home Tab Button
+        homeNavTab = createNavTab("⌂", "Home", true) {
+            switchTab(isHome = true)
+        }
+        homeNavIcon = homeNavTab.getChildAt(0) as TextView
+        homeNavText = homeNavTab.getChildAt(1) as TextView
+
+        // Settings Tab Button
+        settingsNavTab = createNavTab("⚙", "Settings", false) {
+            switchTab(isHome = false)
+        }
+        settingsNavIcon = settingsNavTab.getChildAt(0) as TextView
+        settingsNavText = settingsNavTab.getChildAt(1) as TextView
+
+        pillBar.addView(homeNavTab)
+        pillBar.addView(settingsNavTab)
+        navContainer.addView(pillBar)
+        return navContainer
+    }
+
+    private fun createNavTab(icon: String, title: String, isActive: Boolean, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(0, 16, 0, 16)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+
+            if (isActive) {
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#202738"))
+                    cornerRadius = 48f
+                }
+            }
+
+            val iconView = TextView(this@MainActivity).apply {
+                text = icon
+                textSize = 18f
+                gravity = Gravity.CENTER
+                setTextColor(if (isActive) Color.parseColor("#2979FF") else Color.parseColor("#8E8E93"))
+            }
+
+            val titleView = TextView(this@MainActivity).apply {
+                text = title
+                textSize = 11f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding(0, 4, 0, 0)
+                setTextColor(if (isActive) Color.parseColor("#2979FF") else Color.parseColor("#8E8E93"))
+            }
+
+            addView(iconView)
+            addView(titleView)
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun switchTab(isHome: Boolean) {
+        if (isHome) {
+            homeScroll.visibility = View.VISIBLE
+            settingsScroll.visibility = View.GONE
+
+            homeNavTab.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#202738"))
+                cornerRadius = 48f
+            }
+            settingsNavTab.background = null
+
+            homeNavIcon.setTextColor(Color.parseColor("#2979FF"))
+            homeNavText.setTextColor(Color.parseColor("#2979FF"))
+            settingsNavIcon.setTextColor(Color.parseColor("#8E8E93"))
+            settingsNavText.setTextColor(Color.parseColor("#8E8E93"))
+        } else {
+            homeScroll.visibility = View.GONE
+            settingsScroll.visibility = View.VISIBLE
+
+            settingsNavTab.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#202738"))
+                cornerRadius = 48f
+            }
+            homeNavTab.background = null
+
+            settingsNavIcon.setTextColor(Color.parseColor("#2979FF"))
+            settingsNavText.setTextColor(Color.parseColor("#2979FF"))
+            homeNavIcon.setTextColor(Color.parseColor("#8E8E93"))
+            homeNavText.setTextColor(Color.parseColor("#8E8E93"))
+        }
+    }
+
+    // --- HOME COMPONENTS ---
 
     private fun createTopControlPanel(): View {
         val panel = LinearLayout(this).apply {
@@ -291,6 +432,8 @@ class MainActivity : AppCompatActivity() {
         return row
     }
 
+    // --- SETTINGS COMPONENTS ---
+
     private fun createSlidersPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -439,7 +582,7 @@ class MainActivity : AppCompatActivity() {
 }
 
 // =======================================================================
-// BULLETPROOF PHYSICS ENGINE
+// VISIBLE BUBBLE PHYSICS ENGINE (Color tuned with soft specular sheen)
 // =======================================================================
 
 class BubbleBackgroundView(context: Context) : View(context) {
@@ -448,15 +591,23 @@ class BubbleBackgroundView(context: Context) : View(context) {
     
     private val bubbles = mutableListOf<Bubble>()
     
+    // Translucent dark slate fill
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#050505")
+        color = Color.parseColor("#181822")
         style = Paint.Style.FILL
     }
     
+    // Crisp metallic stroke
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#1A1A1E") 
+        color = Color.parseColor("#38384C")
         style = Paint.Style.STROKE
-        strokeWidth = 3f
+        strokeWidth = 3.5f
+    }
+
+    // Specular highlight to give bubbles physical depth
+    private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#18FFFFFF")
+        style = Paint.Style.FILL
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -468,15 +619,15 @@ class BubbleBackgroundView(context: Context) : View(context) {
         val numberOfBubbles = 15
         
         for (i in 0 until numberOfBubbles) {
-            val radius = 50f + (Math.random() * 110f).toFloat()
+            val radius = 55f + (Math.random() * 110f).toFloat()
             val x = radius + (Math.random() * (w - 2f * radius)).toFloat()
             val y = radius + (Math.random() * (h - 2f * radius)).toFloat()
             
             val dirX = if (Math.random() > 0.5) 1f else -1f
             val dirY = if (Math.random() > 0.5) 1f else -1f
             
-            val dx = dirX * (0.3f + (Math.random() * 1.2f).toFloat())
-            val dy = dirY * (0.3f + (Math.random() * 1.2f).toFloat())
+            val dx = dirX * (0.35f + (Math.random() * 1.1f).toFloat())
+            val dy = dirY * (0.35f + (Math.random() * 1.1f).toFloat())
             
             bubbles.add(Bubble(x, y, radius, dx, dy))
         }
@@ -514,7 +665,7 @@ class BubbleBackgroundView(context: Context) : View(context) {
                     
                     val dist = Math.sqrt(distSq.toDouble()).toFloat()
                     val overlap = minDist - dist
-                    if(dist > 0f) {
+                    if (dist > 0f) {
                         val nx = diffX / dist
                         val ny = diffY / dist
                         b.x += nx * (overlap / 2f)
@@ -525,8 +676,10 @@ class BubbleBackgroundView(context: Context) : View(context) {
                 }
             }
 
+            // Draw bubble body, border, and light glint
             canvas.drawCircle(b.x, b.y, b.r, fillPaint)
             canvas.drawCircle(b.x, b.y, b.r, strokePaint)
+            canvas.drawCircle(b.x - b.r * 0.32f, b.y - b.r * 0.32f, b.r * 0.22f, sheenPaint)
         }
 
         invalidate()
