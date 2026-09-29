@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.*
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.MotionEvent
@@ -107,7 +108,7 @@ class PieMenuView(
         activeSlice = -1
         isCenterActive = false
 
-        triggerHaptic(25L)
+        triggerHeavyClick() // Strong bump when opening the menu
 
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 450
@@ -137,9 +138,6 @@ class PieMenuView(
         canvas.save()
         canvas.rotate(-45f * (1f - safeProgress), startX, startY)
 
-        // ---------------------------------------------------------
-        // FIXED MATH: PERFECT 180-DEGREE SYMMETRICAL SEMI-CIRCLE
-        // ---------------------------------------------------------
         val totalSpan = 180f 
         val gapAngle = 4f 
         val sweepAngle = totalSpan / slices.size.toFloat()
@@ -157,7 +155,6 @@ class PieMenuView(
             val currentOuterR = if (isSelected) baseOuterR + 40f else baseOuterR
             val currentInnerR = if (isSelected) baseInnerR - 15f else baseInnerR
 
-            // 90f perfectly anchors the start of the fan straight down at 6 o'clock
             val startAngle = 90f + (i.toFloat() * sweepAngle)
             val actualStart = startAngle + (gapAngle / 2f)
             val actualSweep = sweepAngle - gapAngle
@@ -182,9 +179,7 @@ class PieMenuView(
                 "Neon" -> {
                     fillPaint.color = slice.color
                     fillPaint.alpha = if (isSelected) 255 else 180
-                    if (isSelected) {
-                        fillPaint.setShadowLayer(40f, 0f, 0f, slice.color)
-                    }
+                    if (isSelected) fillPaint.setShadowLayer(40f, 0f, 0f, slice.color)
                 }
                 "Glass" -> {
                     val startColor = adjustAlpha(slice.color, if (isSelected) 0.85f else 0.25f)
@@ -223,7 +218,6 @@ class PieMenuView(
         }
         canvas.restore()
 
-        // CENTER CLOSE BUTTON
         val baseCenterR = 90f * animProgress
         val centerR = if (isCenterActive) baseCenterR + 15f else baseCenterR
         
@@ -231,9 +225,7 @@ class PieMenuView(
             style = Paint.Style.FILL
             color = if (isCenterActive) Color.parseColor("#FF453A") else Color.parseColor("#1C1C1E")
             alpha = if (isCenterActive) 255 else (220 * safeProgress).toInt()
-            if (isCenterActive) {
-                setShadowLayer(40f, 0f, 0f, Color.parseColor("#FF453A"))
-            }
+            if (isCenterActive) setShadowLayer(40f, 0f, 0f, Color.parseColor("#FF453A"))
         }
         
         canvas.drawCircle(startX, startY, centerR, centerPaint)
@@ -315,13 +307,12 @@ class PieMenuView(
                     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
                     if (angle < 0.0) angle += 360.0
 
-                    // FIXED TOUCH MATH: Triggers accurately across the perfect 180 degree left-facing arc
                     if (angle in 90.0..270.0) {
                         val normalized = angle - 90.0
                         val sliceIndex = (normalized / (180.0 / slices.size.toDouble())).toInt().coerceIn(0, slices.size - 1)
                         if (sliceIndex != activeSlice) {
                             activeSlice = sliceIndex
-                            triggerHaptic(12L) 
+                            triggerTick() // Crisp mechanical click jumping between tiles
                             invalidate()
                         }
                     } else {
@@ -337,17 +328,17 @@ class PieMenuView(
                     }
                     if (!isCenterActive) {
                         isCenterActive = true
-                        triggerHaptic(15L) 
+                        triggerTick() // Light tick when dropping back to center
                         invalidate() 
                     }
                 }
             }
             MotionEvent.ACTION_UP -> {
                 if (activeSlice != -1) {
-                    triggerHaptic(18L)
+                    triggerClick() // Solid click on execution
                     onActionSelected(slices[activeSlice].id)
                 } else if (isCenterActive) {
-                    triggerHaptic(20L) 
+                    triggerClick() 
                 }
                 onDismiss()
             }
@@ -356,8 +347,36 @@ class PieMenuView(
         return true
     }
 
-    private fun triggerHaptic(duration: Long) {
-        try { vibrator?.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Exception) {}
+    // --- HIGH QUALITY NATIVE HAPTICS ---
+
+    private fun triggerTick() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+            } else {
+                vibrator?.vibrate(VibrationEffect.createOneShot(15L, 150))
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun triggerClick() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+            } else {
+                vibrator?.vibrate(VibrationEffect.createOneShot(25L, 255))
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun triggerHeavyClick() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+            } else {
+                vibrator?.vibrate(VibrationEffect.createOneShot(40L, 255))
+            }
+        } catch (_: Exception) {}
     }
 
     data class Slice(val title: String, val color: Int, val id: Int, var customIcon: Bitmap? = null)
