@@ -23,7 +23,6 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import java.util.Collections
-import kotlin.math.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -50,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("PiePrefs", Context.MODE_PRIVATE)
 
-        // --- NEW: DYNAMIC BACKGROUND ROOT FRAME ---
+        // DYNAMIC BACKGROUND ROOT FRAME
         val rootFrame = FrameLayout(this).apply {
             setBackgroundColor(Color.parseColor("#09090B"))
         }
@@ -440,7 +439,7 @@ class MainActivity : AppCompatActivity() {
 }
 
 // =======================================================================
-// NEW: DYNAMIC BUBBLE BACKGROUND ENGINE
+// BULLETPROOF PHYSICS ENGINE
 // =======================================================================
 
 class BubbleBackgroundView(context: Context) : View(context) {
@@ -450,12 +449,12 @@ class BubbleBackgroundView(context: Context) : View(context) {
     private val bubbles = mutableListOf<Bubble>()
     
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#050505") // Deep true black for depth
+        color = Color.parseColor("#050505")
         style = Paint.Style.FILL
     }
     
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#1A1A1E") // Subtle grey rim so they are visible
+        color = Color.parseColor("#1A1A1E") 
         style = Paint.Style.STROKE
         strokeWidth = 3f
     }
@@ -464,16 +463,20 @@ class BubbleBackgroundView(context: Context) : View(context) {
         super.onSizeChanged(w, h, oldw, oldh)
         bubbles.clear()
         
+        if (w == 0 || h == 0) return
+        
         val numberOfBubbles = 15
         
         for (i in 0 until numberOfBubbles) {
-            val radius = (50..160).random().toFloat()
-            val x = (radius.toInt()..(w - radius.toInt())).random().toFloat()
-            val y = (radius.toInt()..(h - radius.toInt())).random().toFloat()
+            val radius = 50f + (Math.random() * 110f).toFloat()
+            val x = radius + (Math.random() * (w - 2f * radius)).toFloat()
+            val y = radius + (Math.random() * (h - 2f * radius)).toFloat()
             
-            // Generate a very slow, elegant drift speed
-            val dx = (listOf(-1f, 1f).random()) * (0.3f + Math.random().toFloat() * 1.2f)
-            val dy = (listOf(-1f, 1f).random()) * (0.3f + Math.random().toFloat() * 1.2f)
+            val dirX = if (Math.random() > 0.5) 1f else -1f
+            val dirY = if (Math.random() > 0.5) 1f else -1f
+            
+            val dx = dirX * (0.3f + (Math.random() * 1.2f).toFloat())
+            val dy = dirY * (0.3f + (Math.random() * 1.2f).toFloat())
             
             bubbles.add(Bubble(x, y, radius, dx, dy))
         }
@@ -485,24 +488,23 @@ class BubbleBackgroundView(context: Context) : View(context) {
         for (i in bubbles.indices) {
             val b = bubbles[i]
             
-            // Move bubbles
             b.x += b.dx
             b.y += b.dy
 
-            // Smooth bounce off screen edges
-            if (b.x - b.r < 0) { b.x = b.r; b.dx *= -1 }
-            if (b.x + b.r > width) { b.x = width - b.r; b.dx *= -1 }
-            if (b.y - b.r < 0) { b.y = b.r; b.dy *= -1 }
-            if (b.y + b.r > height) { b.y = height - b.r; b.dy *= -1 }
+            if (b.x - b.r < 0) { b.x = b.r; b.dx *= -1f }
+            if (b.x + b.r > width) { b.x = width - b.r; b.dx *= -1f }
+            if (b.y - b.r < 0) { b.y = b.r; b.dy *= -1f }
+            if (b.y + b.r > height) { b.y = height - b.r; b.dy *= -1f }
 
-            // Elegant, slow collisions with other bubbles
             for (j in i + 1 until bubbles.size) {
                 val b2 = bubbles[j]
-                val distSq = (b.x - b2.x).pow(2) + (b.y - b2.y).pow(2)
+                
+                val diffX = b.x - b2.x
+                val diffY = b.y - b2.y
+                val distSq = diffX * diffX + diffY * diffY
                 val minDist = b.r + b2.r
                 
                 if (distSq < minDist * minDist) {
-                    // Swap directions for a smooth bounce
                     val tempDx = b.dx
                     val tempDy = b.dy
                     b.dx = b2.dx
@@ -510,12 +512,11 @@ class BubbleBackgroundView(context: Context) : View(context) {
                     b2.dx = tempDx
                     b2.dy = tempDy
                     
-                    // Gently push them apart so they don't get stuck glued together
-                    val dist = sqrt(distSq)
+                    val dist = Math.sqrt(distSq.toDouble()).toFloat()
                     val overlap = minDist - dist
-                    if(dist > 0) {
-                        val nx = (b.x - b2.x) / dist
-                        val ny = (b.y - b2.y) / dist
+                    if(dist > 0f) {
+                        val nx = diffX / dist
+                        val ny = diffY / dist
                         b.x += nx * (overlap / 2f)
                         b.y += ny * (overlap / 2f)
                         b2.x -= nx * (overlap / 2f)
@@ -524,12 +525,10 @@ class BubbleBackgroundView(context: Context) : View(context) {
                 }
             }
 
-            // Draw the bubble shadow/fill and outline
             canvas.drawCircle(b.x, b.y, b.r, fillPaint)
             canvas.drawCircle(b.x, b.y, b.r, strokePaint)
         }
 
-        // Loop the animation at 60fps
         invalidate()
     }
 }
