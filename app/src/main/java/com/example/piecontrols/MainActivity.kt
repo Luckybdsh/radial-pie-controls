@@ -16,6 +16,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import android.transition.AutoTransition
+import android.transition.TransitionManager
 import android.view.DragEvent
 import android.view.Gravity
 import android.view.View
@@ -49,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loginContainer: LinearLayout
     private lateinit var homeScroll: ScrollView
     private lateinit var settingsScroll: ScrollView
+    private lateinit var pillBar: LinearLayout
     private lateinit var homeNavTab: LinearLayout
     private lateinit var settingsNavTab: LinearLayout
     private lateinit var homeNavIcon: TextView
@@ -128,14 +131,12 @@ class MainActivity : AppCompatActivity() {
 
         val rootFrame = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#09090B")) }
         
-        // Background Physics - Stays active behind everything!
         val bubbleBg = BubbleBackgroundView(this)
         rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        // --- MAIN APP UI CONTAINER ---
         mainAppContainer = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            visibility = View.GONE // Hidden until logged in
+            visibility = View.GONE 
         }
 
         // HOME PAGE
@@ -165,18 +166,15 @@ class MainActivity : AppCompatActivity() {
         settingsScroll.addView(settingsLayout)
         mainAppContainer.addView(settingsScroll)
 
-        // BOTTOM NAV
         mainAppContainer.addView(createBottomNavBar())
         rootFrame.addView(mainAppContainer)
 
-        // --- LOGIN UI CONTAINER ---
         loginContainer = createLoginScreen()
         rootFrame.addView(loginContainer)
 
         setContentView(rootFrame)
         loadTiles()
 
-        // Check Login State on boot
         if (prefs.getBoolean("PREF_IS_LOGGED_IN", false)) {
             showMainApp(false)
         }
@@ -195,7 +193,7 @@ class MainActivity : AppCompatActivity() {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(64, 64, 64, 64)
             layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            setBackgroundColor(Color.parseColor("#B309090B")) // Semi-transparent black so bubbles show through!
+            setBackgroundColor(Color.parseColor("#B309090B")) 
         }
 
         val card = LinearLayout(this).apply {
@@ -251,11 +249,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun performLogin(username: String) {
         prefs.edit().putBoolean("PREF_IS_LOGGED_IN", true).putString("PREF_USERNAME", username).apply()
-        
-        // Hide keyboard
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
-        
         showMainApp(true)
     }
 
@@ -290,19 +285,23 @@ class MainActivity : AppCompatActivity() {
             background = GradientDrawable().apply { setColor(Color.parseColor("#3D1616")); setStroke(2, Color.parseColor("#FF453A")); cornerRadius = 32f }
             setOnClickListener {
                 prefs.edit().putBoolean("PREF_IS_LOGGED_IN", false).apply()
-                finish(); startActivity(intent) // Restarts the app back to login screen
+                finish(); startActivity(intent)
             }
         }
         panel.addView(logoutBtn)
         return panel
     }
 
-    // --- BOTTOM NAVIGATION BAR ---
+    // =======================================================================
+    // BOTTOM NAVIGATION & SMOOTH ANIMATIONS
+    // =======================================================================
+
     private fun createBottomNavBar(): View {
         val navContainer = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.BOTTOM; setMargins(48, 0, 48, 48) }
         }
-        val pillBar = LinearLayout(this).apply {
+        
+        pillBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(20, 16, 20, 16)
             background = GradientDrawable().apply { setColor(Color.parseColor("#181820")); setStroke(2, Color.parseColor("#2E2E3C")); cornerRadius = 64f }
             layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -310,6 +309,7 @@ class MainActivity : AppCompatActivity() {
 
         homeNavTab = createNavTab("⌂", "Home", true) { switchTab(isHome = true) }
         homeNavIcon = homeNavTab.getChildAt(0) as TextView; homeNavText = homeNavTab.getChildAt(1) as TextView
+        
         settingsNavTab = createNavTab("⚙", "Settings", false) { switchTab(isHome = false) }
         settingsNavIcon = settingsNavTab.getChildAt(0) as TextView; settingsNavText = settingsNavTab.getChildAt(1) as TextView
 
@@ -330,12 +330,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun switchTab(isHome: Boolean) {
-        homeScroll.visibility = if (isHome) View.VISIBLE else View.GONE
-        settingsScroll.visibility = if (isHome) View.GONE else View.VISIBLE
+        val viewToShow = if (isHome) homeScroll else settingsScroll
+        val viewToHide = if (isHome) settingsScroll else homeScroll
+
+        if (viewToShow.visibility == View.VISIBLE) return // Prevent double tapping
+
+        // 1. Smoothly morph the Pill Background inside the Nav Bar
+        TransitionManager.beginDelayedTransition(pillBar, AutoTransition().apply { duration = 250 })
+        
         homeNavTab.background = if (isHome) GradientDrawable().apply { setColor(Color.parseColor("#202738")); cornerRadius = 48f } else null
         settingsNavTab.background = if (!isHome) GradientDrawable().apply { setColor(Color.parseColor("#202738")); cornerRadius = 48f } else null
-        homeNavIcon.setTextColor(Color.parseColor(if (isHome) "#2979FF" else "#8E8E93")); homeNavText.setTextColor(Color.parseColor(if (isHome) "#2979FF" else "#8E8E93"))
-        settingsNavIcon.setTextColor(Color.parseColor(if (!isHome) "#2979FF" else "#8E8E93")); settingsNavText.setTextColor(Color.parseColor(if (!isHome) "#2979FF" else "#8E8E93"))
+
+        // 2. Change Text & Icon colors
+        homeNavIcon.setTextColor(Color.parseColor(if (isHome) "#2979FF" else "#8E8E93"))
+        homeNavText.setTextColor(Color.parseColor(if (isHome) "#2979FF" else "#8E8E93"))
+        settingsNavIcon.setTextColor(Color.parseColor(if (!isHome) "#2979FF" else "#8E8E93"))
+        settingsNavText.setTextColor(Color.parseColor(if (!isHome) "#2979FF" else "#8E8E93"))
+
+        // 3. Smooth Content Crossfade & Glide Animation
+        viewToShow.alpha = 0f
+        viewToShow.translationY = 40f
+        viewToShow.visibility = View.VISIBLE
+        
+        viewToShow.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(300)
+            .start()
+
+        viewToHide.animate()
+            .alpha(0f)
+            .translationY(-40f)
+            .setDuration(300)
+            .withEndAction {
+                viewToHide.visibility = View.GONE
+                viewToHide.translationY = 0f // Reset for next time
+            }
+            .start()
     }
 
     // --- HOME COMPONENTS ---
