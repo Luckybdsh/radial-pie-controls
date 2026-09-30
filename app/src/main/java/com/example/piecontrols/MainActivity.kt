@@ -483,24 +483,30 @@ class MainActivity : AppCompatActivity() {
 }
 
 // =======================================================================
-// THE 3-COLOR APP OPENING SPLASH ANIMATION ENGINE
+// THE 3-COLOR SEPARATED TILE SPLASH ANIMATION ENGINE
 // =======================================================================
 class SplashPieView(context: Context, val onComplete: () -> Unit) : View(context) {
     private var currentSweep = 0f
     private var scale = 0.5f
     
-    // The three premium colors for the slices
-    private val paint1 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#2979FF"); style = Paint.Style.FILL } // Blue
-    private val paint2 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#6C2BD9"); style = Paint.Style.FILL } // Purple
-    private val paint3 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#34C759"); style = Paint.Style.FILL } // Green
+    // Helper to create the thick, separated rounded-corner look
+    private fun createPaint(hexColor: String): Paint {
+        return Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(hexColor)
+            style = Paint.Style.STROKE      // Draws an outer ring segment instead of a solid pizza slice
+            strokeCap = Paint.Cap.ROUND     // Automatically makes all ends perfectly rounded
+        }
+    }
+    
+    private val paint1 = createPaint("#2979FF") // Blue
+    private val paint2 = createPaint("#6C2BD9") // Purple
+    private val paint3 = createPaint("#34C759") // Green
 
     init {
-        // Sweeps a total of 270 degrees (-45 to 225)
         val anim = ValueAnimator.ofFloat(0f, 270f)
-        anim.duration = 1200 // Slightly longer for the multi-part effect
+        anim.duration = 1200 
         anim.addUpdateListener { 
             currentSweep = it.animatedValue as Float
-            // Smooth zoom-in effect while spinning
             scale = 0.5f + (0.7f * (currentSweep / 270f))
             invalidate()
         }
@@ -514,24 +520,31 @@ class SplashPieView(context: Context, val onComplete: () -> Unit) : View(context
         super.onDraw(canvas)
         val cx = width / 2f
         val cy = height / 2f
-        val r = (width / 3f) * scale
+        val r = (width / 3.5f) * scale // Slightly smaller radius so the thick tiles fit
         
-        // Slice 1: First 90 degrees (Blue)
-        val sweep1 = Math.min(currentSweep, 90f)
+        // Dynamically scale the thickness of the tiles as they zoom in
+        val thickness = (width / 6f) * scale
+        paint1.strokeWidth = thickness
+        paint2.strokeWidth = thickness
+        paint3.strokeWidth = thickness
+        
+        // Tile 1 (Blue): Sweep max 60° to leave a 30° gap before the next tile
+        val sweep1 = Math.min(currentSweep, 60f)
         if (sweep1 > 0) {
-            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, -45f, sweep1, true, paint1)
+            // Note: 'false' is passed to prevent drawing lines to the center point
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, -45f, sweep1, false, paint1)
         }
 
-        // Slice 2: Second 90 degrees (Purple)
-        val sweep2 = Math.max(0f, Math.min(currentSweep - 90f, 90f))
+        // Tile 2 (Purple)
+        val sweep2 = Math.max(0f, Math.min(currentSweep - 90f, 60f))
         if (sweep2 > 0) {
-            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 45f, sweep2, true, paint2)
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 45f, sweep2, false, paint2)
         }
 
-        // Slice 3: Final 90 degrees (Green)
-        val sweep3 = Math.max(0f, Math.min(currentSweep - 180f, 90f))
+        // Tile 3 (Green)
+        val sweep3 = Math.max(0f, Math.min(currentSweep - 180f, 60f))
         if (sweep3 > 0) {
-            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 135f, sweep3, true, paint3)
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 135f, sweep3, false, paint3)
         }
     }
 }
