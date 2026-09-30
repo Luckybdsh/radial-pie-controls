@@ -483,19 +483,25 @@ class MainActivity : AppCompatActivity() {
 }
 
 // =======================================================================
-// THE CUSTOM APP OPENING SPLASH ANIMATION ENGINE
+// THE 3-COLOR APP OPENING SPLASH ANIMATION ENGINE
 // =======================================================================
 class SplashPieView(context: Context, val onComplete: () -> Unit) : View(context) {
-    private var sweep = 0f
+    private var currentSweep = 0f
     private var scale = 0.5f
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#2979FF"); style = Paint.Style.FILL }
+    
+    // The three premium colors for the slices
+    private val paint1 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#2979FF"); style = Paint.Style.FILL } // Blue
+    private val paint2 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#6C2BD9"); style = Paint.Style.FILL } // Purple
+    private val paint3 = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#34C759"); style = Paint.Style.FILL } // Green
 
     init {
+        // Sweeps a total of 270 degrees (-45 to 225)
         val anim = ValueAnimator.ofFloat(0f, 270f)
-        anim.duration = 1000
+        anim.duration = 1200 // Slightly longer for the multi-part effect
         anim.addUpdateListener { 
-            sweep = it.animatedValue as Float
-            scale = 0.5f + (0.7f * (sweep / 270f))
+            currentSweep = it.animatedValue as Float
+            // Smooth zoom-in effect while spinning
+            scale = 0.5f + (0.7f * (currentSweep / 270f))
             invalidate()
         }
         anim.addListener(object : AnimatorListenerAdapter() {
@@ -509,7 +515,24 @@ class SplashPieView(context: Context, val onComplete: () -> Unit) : View(context
         val cx = width / 2f
         val cy = height / 2f
         val r = (width / 3f) * scale
-        canvas.drawArc(cx - r, cy - r, cx + r, cy + r, -45f, sweep, true, paint)
+        
+        // Slice 1: First 90 degrees (Blue)
+        val sweep1 = Math.min(currentSweep, 90f)
+        if (sweep1 > 0) {
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, -45f, sweep1, true, paint1)
+        }
+
+        // Slice 2: Second 90 degrees (Purple)
+        val sweep2 = Math.max(0f, Math.min(currentSweep - 90f, 90f))
+        if (sweep2 > 0) {
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 45f, sweep2, true, paint2)
+        }
+
+        // Slice 3: Final 90 degrees (Green)
+        val sweep3 = Math.max(0f, Math.min(currentSweep - 180f, 90f))
+        if (sweep3 > 0) {
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, 135f, sweep3, true, paint3)
+        }
     }
 }
 
