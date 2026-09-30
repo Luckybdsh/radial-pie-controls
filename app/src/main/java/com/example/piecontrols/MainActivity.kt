@@ -12,7 +12,6 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -65,7 +64,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var settingsNavText: TextView
     private lateinit var welcomeLabel: TextView
 
-    // Theme Variables
+    // Dynamic Theme Variables
     private var isLightMode = false
     private val bgCol get() = Color.parseColor(if (isLightMode) "#F2F2F7" else "#09090B")
     private val cardCol get() = Color.parseColor(if (isLightMode) "#FFFFFF" else "#121214")
@@ -91,8 +90,6 @@ class MainActivity : AppCompatActivity() {
         isLightMode = prefs.getBoolean("PREF_IS_LIGHT_MODE", false)
 
         val rootFrame = FrameLayout(this).apply { setBackgroundColor(bgCol) }
-        
-        // Background Physics
         val bubbleBg = BubbleBackgroundView(this, isLightMode)
         rootFrame.addView(bubbleBg, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
@@ -107,9 +104,9 @@ class MainActivity : AppCompatActivity() {
         homeLayout.addView(createTopControlPanel())
         homeLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
         homeLayout.addView(createThemeStylePanel())
-        homeLayout.addView(createSectionTitle("TILE SHAPE", "Master Tier Required"))
+        homeLayout.addView(createSectionTitle("TILE SHAPE", "Border Styling"))
         homeLayout.addView(createTileShapePanel())
-        homeLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Pro Tier Required"))
+        homeLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to select"))
         homeLayout.addView(createAppSelectPanel())
         homeLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
         homeLayout.addView(createSlidersPanel())
@@ -120,17 +117,14 @@ class MainActivity : AppCompatActivity() {
 
         settingsScroll = ScrollView(this).apply { isFillViewport = true; visibility = View.GONE; setPadding(48, 64, 48, 240); clipToPadding = false }
         val settingsLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        settingsLayout.addView(createSectionTitle("DATA MANAGEMENT", "Pro Tier Required"))
+        settingsLayout.addView(createSectionTitle("DATA MANAGEMENT", "Export or import settings"))
         settingsLayout.addView(createBackupRestorePanel())
-        settingsLayout.addView(createSectionTitle("UNLOCK PREMIUM", "Enter passcodes to upgrade"))
-        settingsLayout.addView(createSubscriptionPanel())
         settingsLayout.addView(createSectionTitle("ACCOUNT SESSION", "Manage your login"))
         settingsLayout.addView(createLogoutPanel())
         settingsScroll.addView(settingsLayout)
         mainAppContainer.addView(settingsScroll)
 
         mainAppContainer.addView(createBottomNavBar())
-        mainAppContainer.addView(createDarkModeToggle()) // The floating Sun/Moon button!
         rootFrame.addView(mainAppContainer)
 
         // LOGIN UI
@@ -141,7 +135,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(rootFrame)
         loadTiles()
 
-        // THE SPLASH ANIMATION ENGINE
         val skipSplash = intent.getBooleanExtra("SKIP_SPLASH", false)
         if (skipSplash) {
             checkLoginState(false)
@@ -178,40 +171,7 @@ class MainActivity : AppCompatActivity() {
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     // =======================================================================
-    // THE PRO DARK/LIGHT MODE TOGGLE
-    // =======================================================================
-
-    private fun createDarkModeToggle(): View {
-        val layout = FrameLayout(this).apply {
-            layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                gravity = Gravity.TOP or Gravity.END
-                setMargins(0, dpToPx(32), dpToPx(24), 0)
-            }
-        }
-        val toggleBtn = TextView(this).apply {
-            text = if (isLightMode) "🌙" else "☀️"
-            textSize = 28f
-            setPadding(32, 32, 32, 32)
-            setOnClickListener {
-                if (prefs.getInt("PREF_USER_TIER", 0) >= 2) {
-                    prefs.edit().putBoolean("PREF_IS_LIGHT_MODE", !isLightMode).apply()
-                    // Restart Activity smoothly without showing splash screen again
-                    val reloadIntent = intent
-                    reloadIntent.putExtra("SKIP_SPLASH", true)
-                    finish()
-                    startActivity(reloadIntent)
-                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                } else {
-                    Toast.makeText(this@MainActivity, "Dark/Light mode requires Pro Tier!", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        layout.addView(toggleBtn)
-        return layout
-    }
-
-    // =======================================================================
-    // MASTER TIER: TILE SHAPES
+    // TILE SHAPES (Fully Unlocked)
     // =======================================================================
 
     private fun createTileShapePanel(): View {
@@ -225,13 +185,9 @@ class MainActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
                 layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }
                 setOnClickListener {
-                    if (prefs.getInt("PREF_USER_TIER", 0) >= 3) {
-                        prefs.edit().putString("PREF_TILE_SHAPE", shape.third).apply()
-                        updateShapeSelectionUI(shape.third)
-                        renderTiles() // Redraw preview instantly!
-                    } else {
-                        Toast.makeText(this@MainActivity, "Requires Master Tier!", Toast.LENGTH_SHORT).show()
-                    }
+                    prefs.edit().putString("PREF_TILE_SHAPE", shape.third).apply()
+                    updateShapeSelectionUI(shape.third)
+                    renderTiles() 
                 }
             }
             card.addView(TextView(this).apply { text = shape.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol); setPadding(0, 0, 0, 8) })
@@ -290,9 +246,9 @@ class MainActivity : AppCompatActivity() {
             val pieBg = PiePreviewBackground(this@MainActivity, radius, cardElevatedCol, strokeCol)
             dragContainer.addView(pieBg, FrameLayout.LayoutParams(width, height))
 
-            // REVERSED ANGLE MATH: Now properly matches real edge bar (Bottom to Top)
-            val startAngle = 70.0 
-            val endAngle = -70.0
+            // REVERSED ANGLE MATH: Now properly matches real edge bar (Top to Bottom)
+            val startAngle = -70.0 
+            val endAngle = 70.0
             val step = if (currentTiles.size > 1) (endAngle - startAngle) / (currentTiles.size - 1) else 0.0
 
             currentTiles.forEachIndexed { index, tile ->
@@ -340,12 +296,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             background = GradientDrawable().apply { 
                 setColor(cardElevatedCol); cornerRadius = cornerRad
-                if (shapeStyle == "Fur") {
-                    // Furry dashed line effect for Master users!
-                    setStroke(5, bubbleStrokeCol, 15f, 10f)
-                } else {
-                    setStroke(2, bubbleStrokeCol)
-                }
+                if (shapeStyle == "Fur") setStroke(5, bubbleStrokeCol, 15f, 10f) else setStroke(2, bubbleStrokeCol)
             }
         }
         bubble.addView(TextView(this).apply { text = iconStr; textSize = 22f; setTextColor(textCol); gravity = Gravity.CENTER })
@@ -357,7 +308,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // =======================================================================
-    // JSON BACKUPS & RESTORE
+    // JSON BACKUPS & RESTORE (Fully Unlocked)
     // =======================================================================
 
     private val backupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let { performBackup(it) } }
@@ -456,8 +407,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun createTopControlPanel(): View {
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); background = GradientDrawable().apply { setColor(cardCol); cornerRadius = 40f }; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) } }
-        val username = prefs.getString("PREF_USERNAME", "Guest"); welcomeLabel = TextView(this).apply { text = "Welcome, $username"; textSize = 12f; setTextColor(Color.parseColor("#2979FF")); setPadding(0, 0, 0, 24); typeface = Typeface.DEFAULT_BOLD }; panel.addView(welcomeLabel)
+        
+        // ROW 1: Welcome & Sun/Moon Embedded Button
+        val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, 32) }
+        val username = prefs.getString("PREF_USERNAME", "Guest")
+        welcomeLabel = TextView(this).apply { text = "Welcome, $username"; textSize = 14f; setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }
+        val themeToggle = TextView(this).apply {
+            text = if (isLightMode) "🌙 Dark Mode" else "☀️ Light Mode"
+            textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol)
+            background = GradientDrawable().apply { setColor(cardElevatedCol); cornerRadius = 32f }
+            setPadding(32, 16, 32, 16)
+            setOnClickListener {
+                prefs.edit().putBoolean("PREF_IS_LIGHT_MODE", !isLightMode).apply()
+                val reloadIntent = intent
+                reloadIntent.putExtra("SKIP_SPLASH", true)
+                finish(); startActivity(reloadIntent); overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            }
+        }
+        topRow.addView(welcomeLabel); topRow.addView(themeToggle)
+        panel.addView(topRow)
+
+        // ROW 2: Title & Switch
         val switchRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, 32) }; val titleTextLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }; titleTextLayout.addView(TextView(this).apply { text = "Pie Controls"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol) }); titleTextLayout.addView(TextView(this).apply { text = "Quick toggle edge bar On or Off"; textSize = 11f; setTextColor(textSubCol) }); val masterSwitch = SwitchCompat(this).apply { isChecked = prefs.getBoolean("PREF_SERVICE_ENABLED", true); setOnCheckedChangeListener { _, isChecked -> prefs.edit().putBoolean("PREF_SERVICE_ENABLED", isChecked).apply() } }; switchRow.addView(titleTextLayout); switchRow.addView(masterSwitch); panel.addView(switchRow)
+        
         val statusRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, 24) }; statusDot = View(this).apply { layoutParams = LinearLayout.LayoutParams(18, 18).apply { setMargins(0, 0, 16, 0) }; background = GradientDrawable().apply { setColor(Color.parseColor("#FF453A")); cornerRadius = 90f } }; statusText = TextView(this).apply { text = "SERVICE STATUS"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#FF453A")) }; statusRow.addView(statusDot); statusRow.addView(statusText); panel.addView(statusRow)
         val permissionsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 16, 0, 0); weightSum = 2f }; overlayCard = createPermissionBox("Screen Overlay").apply { layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(0, 0, 16, 0) }; setOnClickListener { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } }; accessibilityCard = createPermissionBox("Accessibility").apply { layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(16, 0, 0, 0) }; setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }; permissionsRow.addView(overlayCard); permissionsRow.addView(accessibilityCard); panel.addView(permissionsRow)
         return panel
@@ -472,8 +444,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createThemeStylePanel(): View {
-        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }; val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }; val styles = listOf(Triple("Simple", "Flat Colors", "Simple"), Triple("Neon", "Requires Beginner", "Neon"), Triple("Glass", "Requires Pro", "Glass")); val currentTheme = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
-        styles.forEach { style -> val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }; setOnClickListener { val userTier = prefs.getInt("PREF_USER_TIER", 0); val requiredTier = when (style.third) { "Neon" -> 1; "Glass" -> 2; else -> 0 }; if (userTier >= requiredTier) { prefs.edit().putString("PREF_VISUAL_STYLE", style.third).apply(); updateThemeSelectionUI(style.third) } else { Toast.makeText(this@MainActivity, "Requires ${if (requiredTier==1) "Beginner" else "Pro"} Tier!", Toast.LENGTH_SHORT).show() } } }; card.addView(TextView(this).apply { text = style.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol); setPadding(0, 0, 0, 8) }); card.addView(TextView(this).apply { text = style.second; textSize = 11f; setTextColor(textSubCol) }); themeCards[style.third] = card; row.addView(card) }
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }; val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }; val styles = listOf(Triple("Simple", "Flat Colors", "Simple"), Triple("Neon", "Glowing Edge", "Neon"), Triple("Glass", "Frosted Blur", "Glass")); val currentTheme = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
+        styles.forEach { style -> val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }; setOnClickListener { prefs.edit().putString("PREF_VISUAL_STYLE", style.third).apply(); updateThemeSelectionUI(style.third) } }; card.addView(TextView(this).apply { text = style.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol); setPadding(0, 0, 0, 8) }); card.addView(TextView(this).apply { text = style.second; textSize = 11f; setTextColor(textSubCol) }); themeCards[style.third] = card; row.addView(card) }
         updateThemeSelectionUI(currentTheme); scroll.addView(row); return scroll
     }
 
@@ -482,7 +454,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createAppSelectPanel(): View {
-        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); background = GradientDrawable().apply { setColor(cardCol); cornerRadius = 40f }; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) } }; val currentAppName = prefs.getString("PREF_CUSTOM_APP_NAME", "None Selected"); selectedAppLabel = TextView(this).apply { text = "Selected: $currentAppName"; setTextColor(textCol); textSize = 16f; setPadding(0, 0, 0, 32) }; val selectBtn = Button(this).apply { text = "Choose App"; setBackgroundColor(Color.parseColor("#2979FF")); setTextColor(Color.WHITE); setOnClickListener { if (prefs.getInt("PREF_USER_TIER", 0) >= 2) showAppPicker() else Toast.makeText(this@MainActivity, "Custom App Shortcuts require Pro Tier!", Toast.LENGTH_SHORT).show() } }; panel.addView(selectedAppLabel); panel.addView(selectBtn); return panel
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); background = GradientDrawable().apply { setColor(cardCol); cornerRadius = 40f }; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) } }; val currentAppName = prefs.getString("PREF_CUSTOM_APP_NAME", "None Selected"); selectedAppLabel = TextView(this).apply { text = "Selected: $currentAppName"; setTextColor(textCol); textSize = 16f; setPadding(0, 0, 0, 32) }; val selectBtn = Button(this).apply { text = "Choose App"; setBackgroundColor(Color.parseColor("#2979FF")); setTextColor(Color.WHITE); setOnClickListener { showAppPicker() } }; panel.addView(selectedAppLabel); panel.addView(selectBtn); return panel
     }
 
     private fun showAppPicker() {
@@ -499,23 +471,14 @@ class MainActivity : AppCompatActivity() {
         val heightPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD }; val heightSlider = SeekBar(this).apply { max = 1200; progress = prefs.getInt("PREF_BAR_HEIGHT", 750) - 200; heightPercent.text = "${(progress * 100 / max)}%"; setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: SeekBar?, prog: Int, f: Boolean) { prefs.edit().putInt("PREF_BAR_HEIGHT", prog + 200).apply(); heightPercent.text = "${(prog * 100 / max)}%" }; override fun onStartTrackingTouch(s: SeekBar?) {}; override fun onStopTrackingTouch(s: SeekBar?) {} }) }; panel.addView(createLabelRow("Bar Height", heightPercent)); panel.addView(heightSlider)
         val widthPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; setPadding(0,24,0,0) }; val widthSlider = SeekBar(this).apply { max = 100; progress = prefs.getInt("PREF_BAR_WIDTH", 55) - 20; widthPercent.text = "$progress%"; setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: SeekBar?, prog: Int, f: Boolean) { prefs.edit().putInt("PREF_BAR_WIDTH", prog + 20).apply(); widthPercent.text = "$prog%" }; override fun onStartTrackingTouch(s: SeekBar?) {}; override fun onStopTrackingTouch(s: SeekBar?) {} }) }; panel.addView(createLabelRow("Bar Width", widthPercent)); panel.addView(widthSlider)
         val opacityPercent = TextView(this).apply { setTextColor(Color.parseColor("#2979FF")); typeface = Typeface.DEFAULT_BOLD; setPadding(0,24,0,0) }; val opacitySlider = SeekBar(this).apply { max = 100; progress = prefs.getInt("PREF_BAR_ALPHA", 100); opacityPercent.text = "$progress%"; setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: SeekBar?, prog: Int, f: Boolean) { prefs.edit().putInt("PREF_BAR_ALPHA", prog).apply(); opacityPercent.text = "$prog%" }; override fun onStartTrackingTouch(s: SeekBar?) {}; override fun onStopTrackingTouch(s: SeekBar?) {} }) }; panel.addView(createLabelRow("Bar Opacity", opacityPercent)); panel.addView(opacitySlider)
-        val posSlider = SeekBar(this).apply { max = 1000; progress = prefs.getInt("PREF_BAR_POS", 0) + 500; setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: SeekBar?, prog: Int, f: Boolean) { if (prefs.getInt("PREF_USER_TIER", 0) >= 3) { prefs.edit().putInt("PREF_BAR_POS", prog - 500).apply() } else { progress = 500; Toast.makeText(this@MainActivity, "Custom Position requires Master Tier!", Toast.LENGTH_SHORT).show() } }; override fun onStartTrackingTouch(s: SeekBar?) {}; override fun onStopTrackingTouch(s: SeekBar?) {} }) }; panel.addView(createLabelRow("Vertical Position (Master Tier)", null).apply { setPadding(0, 24, 0, 16) }); panel.addView(posSlider); return panel
+        val posSlider = SeekBar(this).apply { max = 1000; progress = prefs.getInt("PREF_BAR_POS", 0) + 500; setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: SeekBar?, prog: Int, f: Boolean) { prefs.edit().putInt("PREF_BAR_POS", prog - 500).apply() }; override fun onStartTrackingTouch(s: SeekBar?) {}; override fun onStopTrackingTouch(s: SeekBar?) {} }) }; panel.addView(createLabelRow("Vertical Position", null).apply { setPadding(0, 24, 0, 16) }); panel.addView(posSlider); return panel
     }
 
     private fun createBackupRestorePanel(): View {
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); background = GradientDrawable().apply { setColor(cardCol); cornerRadius = 40f }; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) } }
-        val backupBtn = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 16, 0, 32); addView(TextView(this@MainActivity).apply { text = "↑"; textSize = 24f; setTextColor(Color.parseColor("#2979FF")); setPadding(0, 0, 32, 0) }); val textLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }; textLayout.addView(TextView(this@MainActivity).apply { text = "Create Backup"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol) }); textLayout.addView(TextView(this@MainActivity).apply { text = "Save settings to a local file"; textSize = 11f; setTextColor(textSubCol) }); addView(textLayout); setOnClickListener { if (prefs.getInt("PREF_USER_TIER", 0) >= 2) backupLauncher.launch("pie_backup.json") else Toast.makeText(this@MainActivity, "Backup requires Pro Tier!", Toast.LENGTH_SHORT).show() } }
-        val restoreBtn = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 16, 0, 16); addView(TextView(this@MainActivity).apply { text = "↓"; textSize = 24f; setTextColor(Color.parseColor("#34C759")); setPadding(0, 0, 32, 0) }); val textLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }; textLayout.addView(TextView(this@MainActivity).apply { text = "Restore Backup"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol) }); textLayout.addView(TextView(this@MainActivity).apply { text = "Load settings from a file"; textSize = 11f; setTextColor(textSubCol) }); addView(textLayout); setOnClickListener { if (prefs.getInt("PREF_USER_TIER", 0) >= 2) restoreLauncher.launch(arrayOf("application/json", "*/*")) else Toast.makeText(this@MainActivity, "Restore requires Pro Tier!", Toast.LENGTH_SHORT).show() } }
+        val backupBtn = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 16, 0, 32); addView(TextView(this@MainActivity).apply { text = "↑"; textSize = 24f; setTextColor(Color.parseColor("#2979FF")); setPadding(0, 0, 32, 0) }); val textLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }; textLayout.addView(TextView(this@MainActivity).apply { text = "Create Backup"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol) }); textLayout.addView(TextView(this@MainActivity).apply { text = "Save settings to a local file"; textSize = 11f; setTextColor(textSubCol) }); addView(textLayout); setOnClickListener { backupLauncher.launch("pie_backup.json") } }
+        val restoreBtn = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 16, 0, 16); addView(TextView(this@MainActivity).apply { text = "↓"; textSize = 24f; setTextColor(Color.parseColor("#34C759")); setPadding(0, 0, 32, 0) }); val textLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }; textLayout.addView(TextView(this@MainActivity).apply { text = "Restore Backup"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol) }); textLayout.addView(TextView(this@MainActivity).apply { text = "Load settings from a file"; textSize = 11f; setTextColor(textSubCol) }); addView(textLayout); setOnClickListener { restoreLauncher.launch(arrayOf("application/json", "*/*")) } }
         panel.addView(backupBtn); panel.addView(restoreBtn); return panel
-    }
-
-    private fun createSubscriptionPanel(): View {
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 40) } }; val currentTier = prefs.getInt("PREF_USER_TIER", 0)
-        fun createTierCard(tierLevel: Int, titleText: String, descText: String, colorHex: String, unlockCode: String): View {
-            val isUnlocked = currentTier >= tierLevel; val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 48, 48, 48); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 32) }; background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor(if (isUnlocked) "#1C261D" else "#1A1A1E"), Color.parseColor(if (isUnlocked) "#121A13" else "#121214"))).apply { cornerRadius = 40f; setStroke(3, Color.parseColor(if (isUnlocked) "#34C759" else colorHex)) } }
-            val headerRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, 16) }; val title = TextView(this).apply { text = titleText; textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }; val statusBadge = TextView(this).apply { text = if (isUnlocked) "ACTIVE" else "LOCKED"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setPadding(16, 8, 16, 8); setTextColor(if (isUnlocked) Color.parseColor("#121A13") else Color.WHITE); background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor(if (isUnlocked) "#34C759" else "#404040")) } }; headerRow.addView(title); headerRow.addView(statusBadge); val desc = TextView(this).apply { text = descText; textSize = 12f; setTextColor(Color.parseColor("#A0A0A5")); setPadding(0, 0, 0, 24) }; val actionBtn = Button(this).apply { text = if (isUnlocked) "UNLOCKED" else "Enter Passcode"; setBackgroundColor(if (isUnlocked) Color.parseColor("#34C759") else Color.parseColor(colorHex)); setTextColor(if (isUnlocked) Color.BLACK else Color.WHITE); isEnabled = !isUnlocked; setOnClickListener { val input = EditText(this@MainActivity).apply { hint = "Enter Secret Code"; setTextColor(Color.BLACK); setPadding(48, 48, 48, 48) }; AlertDialog.Builder(this@MainActivity, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert).setTitle("Unlock $titleText").setMessage("Enter passcode from developer:").setView(input).setPositiveButton("Unlock") { _, _ -> if (input.text.toString().trim().uppercase() == unlockCode) { prefs.edit().putInt("PREF_USER_TIER", tierLevel).apply(); Toast.makeText(this@MainActivity, "$titleText Unlocked! Restarting...", Toast.LENGTH_LONG).show(); intent.putExtra("SKIP_SPLASH", true); finish(); startActivity(intent) } else Toast.makeText(this@MainActivity, "Invalid Code!", Toast.LENGTH_SHORT).show() }.setNegativeButton("Cancel", null).show() } }; card.addView(headerRow); card.addView(desc); card.addView(actionBtn); return card
-        }
-        container.addView(createTierCard(1, "Beginner", "Unlocks Neon Theme, Native Haptics, and 5 Tiles.", "#2979FF", "BEGIN26")); container.addView(createTierCard(2, "Pro", "Unlocks Glass Theme, Cloud Backups, and Light Mode.", "#6C2BD9", "PRO26")); container.addView(createTierCard(3, "Master", "Unlocks Custom Tile Shapes, Position Slider, and VIP.", "#FFC107", "MASTER26")); return container
     }
 }
 
