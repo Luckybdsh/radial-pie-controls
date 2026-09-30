@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var selectedAppLabel: TextView
     private val themeCards = mutableMapOf<String, LinearLayout>()
+    private val shapeCards = mutableMapOf<String, LinearLayout>()
 
     private lateinit var mainAppContainer: FrameLayout
     private lateinit var loginContainer: LinearLayout
@@ -101,8 +102,14 @@ class MainActivity : AppCompatActivity() {
         homeScroll = ScrollView(this).apply { isFillViewport = true; setPadding(48, 64, 48, 240); clipToPadding = false }
         val homeLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         homeLayout.addView(createTopControlPanel())
+        
         homeLayout.addView(createSectionTitle("TILE THEME", "Visual Style"))
         homeLayout.addView(createThemeStylePanel())
+        
+        // RESTORED: Tile Shapes!
+        homeLayout.addView(createSectionTitle("TILE SHAPE", "Border Styling"))
+        homeLayout.addView(createTileShapePanel())
+        
         homeLayout.addView(createSectionTitle("CUSTOM APP SHORTCUT", "Tap to select"))
         homeLayout.addView(createAppSelectPanel())
         homeLayout.addView(createSectionTitle("EDGE BAR SETTINGS"))
@@ -159,6 +166,51 @@ class MainActivity : AppCompatActivity() {
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     // =======================================================================
+    // TILE SHAPES (Restored and Upgraded)
+    // =======================================================================
+
+    private fun createTileShapePanel(): View {
+        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }
+        
+        // ADDED THE NEW "SLICE" WEDGE SHAPE HERE!
+        val shapes = listOf(
+            Triple("Circle", "Standard", "Circle"), 
+            Triple("Slice", "Pie Wedge", "Slice"), 
+            Triple("Square", "Sharp Edges", "Square"), 
+            Triple("Rounded", "Soft Edges", "Rounded"), 
+            Triple("Fur", "Fuzzy Edges", "Fur")
+        )
+        
+        val currentShape = prefs.getString("PREF_TILE_SHAPE", "Circle") ?: "Circle"
+
+        shapes.forEach { shape ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
+                layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }
+                setOnClickListener {
+                    prefs.edit().putString("PREF_TILE_SHAPE", shape.third).apply()
+                    updateShapeSelectionUI(shape.third)
+                    renderTiles() // Redraw preview instantly!
+                }
+            }
+            card.addView(TextView(this).apply { text = shape.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol); setPadding(0, 0, 0, 8) })
+            card.addView(TextView(this).apply { text = shape.second; textSize = 11f; setTextColor(textSubCol) })
+            shapeCards[shape.third] = card
+            row.addView(card)
+        }
+        updateShapeSelectionUI(currentShape); scroll.addView(row)
+        return scroll
+    }
+
+    private fun updateShapeSelectionUI(selectedShape: String) {
+        shapeCards.forEach { (shapeName, card) ->
+            card.background = if (shapeName == selectedShape) GradientDrawable().apply { setColor(cardElevatedCol); setStroke(5, Color.parseColor("#2979FF")); cornerRadius = 32f }
+            else GradientDrawable().apply { setColor(cardCol); setStroke(0, Color.TRANSPARENT); cornerRadius = 32f }
+        }
+    }
+
+    // =======================================================================
     // REVERSED INTERACTIVE PIE SEMICIRCLE
     // =======================================================================
 
@@ -205,7 +257,8 @@ class MainActivity : AppCompatActivity() {
                 val dx = -radius * Math.cos(angleRad)
                 val dy = radius * Math.sin(angleRad)
 
-                val tileView = createPieTileBubble(tile.name, getIconForAction(tile.id))
+                // Passing index so we can color them differently!
+                val tileView = createPieTileBubble(tile.name, getIconForAction(tile.id), index)
                 tileView.tag = index
 
                 tileView.setOnLongClickListener { v ->
@@ -237,34 +290,53 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun createPieTileBubble(name: String, iconStr: String): View {
+    private fun createPieTileBubble(name: String, iconStr: String, index: Int): View {
         val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
+        val shapeStyle = prefs.getString("PREF_TILE_SHAPE", "Circle") ?: "Circle"
         
+        val palette = arrayOf("#2979FF", "#34C759", "#FFC107", "#FF453A", "#6C2BD9", "#00C7BE", "#FF9F0A")
+        val vibrantColor = Color.parseColor(palette[index % palette.size])
+
         val bubble = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             
-            if (themeStyle == "LiquidGlass") {
-                background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
-                    Color.parseColor(if (isLightMode) "#B3FFFFFF" else "#66FFFFFF"), 
-                    Color.parseColor(if (isLightMode) "#4DFFFFFF" else "#1AFFFFFF")
-                )).apply { 
-                    cornerRadius = 200f // Always perfectly circular
+            background = GradientDrawable().apply { 
+                
+                // --- SHAPE LOGIC ---
+                if (shapeStyle == "Slice") {
+                    // Makes a wedge shape pointing towards the right edge!
+                    cornerRadii = floatArrayOf(200f, 200f, 20f, 20f, 20f, 20f, 200f, 200f)
+                } else {
+                    val cornerRad = when (shapeStyle) { "Square" -> 0f; "Rounded" -> 32f; "Fur" -> 16f; else -> 200f }
+                    cornerRadius = cornerRad
+                }
+
+                // --- THEME LOGIC ---
+                if (themeStyle == "Colorful") {
+                    setColor(vibrantColor)
+                    if (shapeStyle == "Fur") setStroke(5, bubbleStrokeCol, 15f, 10f)
+                } else if (themeStyle == "LiquidGlass") {
+                    colors = intArrayOf(
+                        Color.parseColor(if (isLightMode) "#B3FFFFFF" else "#66FFFFFF"), 
+                        Color.parseColor(if (isLightMode) "#4DFFFFFF" else "#1AFFFFFF")
+                    )
+                    orientation = GradientDrawable.Orientation.TL_BR
                     setStroke(4, Color.parseColor(if (isLightMode) "#FFFFFF" else "#80FFFFFF")) 
-                }
-            } else if (themeStyle == "Neon") {
-                background = GradientDrawable().apply { 
-                    setColor(cardElevatedCol); cornerRadius = 200f
+                } else if (themeStyle == "Neon") {
+                    setColor(cardElevatedCol)
                     setStroke(5, Color.parseColor("#2979FF"))
-                }
-            } else {
-                background = GradientDrawable().apply { 
-                    setColor(cardElevatedCol); cornerRadius = 200f
-                    setStroke(2, bubbleStrokeCol)
+                } else {
+                    setColor(cardElevatedCol)
+                    if (shapeStyle == "Fur") setStroke(5, bubbleStrokeCol, 15f, 10f) else setStroke(2, bubbleStrokeCol)
                 }
             }
         }
-        bubble.addView(TextView(this).apply { text = iconStr; textSize = 22f; setTextColor(textCol); gravity = Gravity.CENTER })
-        bubble.addView(TextView(this).apply { val shortName = if (name.length > 5) name.substring(0, 4) + "." else name; text = shortName; textSize = 9f; setTextColor(textSubCol); gravity = Gravity.CENTER })
+        
+        val finalTxtCol = if (themeStyle == "Colorful") Color.WHITE else textCol
+        val finalSubCol = if (themeStyle == "Colorful") Color.parseColor("#E5E5EA") else textSubCol
+        
+        bubble.addView(TextView(this).apply { text = iconStr; textSize = 22f; setTextColor(finalTxtCol); gravity = Gravity.CENTER })
+        bubble.addView(TextView(this).apply { val shortName = if (name.length > 5) name.substring(0, 4) + "." else name; text = shortName; textSize = 9f; setTextColor(finalSubCol); gravity = Gravity.CENTER })
         return bubble
     }
 
@@ -372,7 +444,14 @@ class MainActivity : AppCompatActivity() {
     private fun createThemeStylePanel(): View {
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }; val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, 40) }
         
-        val styles = listOf(Triple("Simple", "Flat Colors", "Simple"), Triple("Neon", "Glowing Edge", "Neon"), Triple("Liquid Glass", "iOS Blur Style", "LiquidGlass"))
+        // ADDED THE NEW "COLORFUL" THEME OPTION!
+        val styles = listOf(
+            Triple("Simple", "Flat Colors", "Simple"), 
+            Triple("Neon", "Glowing Edge", "Neon"), 
+            Triple("Colorful", "Vibrant Slices", "Colorful"),
+            Triple("Liquid Glass", "iOS Blur Style", "LiquidGlass")
+        )
+        
         val currentTheme = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
         styles.forEach { style -> val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40); layoutParams = LinearLayout.LayoutParams(380, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 32, 0) }; setOnClickListener { prefs.edit().putString("PREF_VISUAL_STYLE", style.third).apply(); updateThemeSelectionUI(style.third); renderTiles() } }; card.addView(TextView(this).apply { text = style.first; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(textCol); setPadding(0, 0, 0, 8) }); card.addView(TextView(this).apply { text = style.second; textSize = 11f; setTextColor(textSubCol) }); themeCards[style.third] = card; row.addView(card) }
         updateThemeSelectionUI(currentTheme); scroll.addView(row); return scroll
