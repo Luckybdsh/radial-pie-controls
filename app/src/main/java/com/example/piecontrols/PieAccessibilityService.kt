@@ -32,7 +32,6 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
     private var triggerView: View? = null
     private var menuContainer: FrameLayout? = null
 
-    // Action Map matching your MainActivity
     private val actionIcons = mapOf(0 to "⌂", 1 to "⎘", 2 to "↩", 3 to "♪", 4 to "⧉", 5 to "🔔", 6 to "★")
 
     override fun onServiceConnected() {
@@ -45,14 +44,12 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        // INSTANT LIVE UPDATES: Redraws the UI automatically when you change settings!
         drawUI()
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     private fun drawUI() {
-        // Remove existing views if they exist to prevent duplicates
         triggerView?.let { if (it.isAttachedToWindow) windowManager.removeView(it) }
         menuContainer?.let { if (it.isAttachedToWindow) windowManager.removeView(it) }
 
@@ -64,10 +61,10 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
 
     @SuppressLint("ClickableViewAccessibility")
     private fun createTriggerZone() {
-        val barHeight = dpToPx(prefs.getInt("PREF_BAR_HEIGHT", 750) / 4) // Scaled for screen
+        val barHeight = dpToPx(prefs.getInt("PREF_BAR_HEIGHT", 750) / 4) 
         val barWidth = dpToPx(prefs.getInt("PREF_BAR_WIDTH", 55) / 10)
         val barAlpha = prefs.getInt("PREF_BAR_ALPHA", 100) / 100f
-        val barPos = dpToPx(prefs.getInt("PREF_BAR_POS", 0) / 2) // Vertical offset
+        val barPos = dpToPx(prefs.getInt("PREF_BAR_POS", 0) / 2) 
         val isLightMode = prefs.getBoolean("PREF_IS_LIGHT_MODE", false)
 
         triggerView = View(this).apply {
@@ -75,7 +72,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
                 setColor(Color.parseColor(if (isLightMode) "#000000" else "#FFFFFF"))
                 cornerRadius = 100f
             }
-            alpha = barAlpha * 0.3f // Keep it subtle on the edge
+            alpha = barAlpha * 0.3f 
 
             setOnTouchListener { v, event ->
                 if (event.action == MotionEvent.ACTION_DOWN) {
@@ -87,14 +84,13 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         }
 
         val params = WindowManager.LayoutParams(
-            barWidth,
-            barHeight,
+            barWidth, barHeight,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END // Right edge
-            y = barPos // Custom vertical position
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END 
+            y = barPos 
         }
 
         windowManager.addView(triggerView, params)
@@ -103,18 +99,14 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
     private fun createPieMenu() {
         menuContainer = FrameLayout(this).apply {
             visibility = View.GONE
-            
-            // Tapping anywhere outside the pie closes the menu
             setOnClickListener { hidePieMenu() }
         }
 
         val isLightMode = prefs.getBoolean("PREF_IS_LIGHT_MODE", false)
         val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
 
-        // 1. HARDWARE BLUR & WINDOW SETUP FOR LIQUID GLASS
         val menuParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -123,24 +115,20 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         if (themeStyle == "LiquidGlass") {
             menuParams.flags = menuParams.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                menuParams.blurBehindRadius = 60 // Heavy iOS Frosted Glass blur!
+                menuParams.blurBehindRadius = 60 
             }
-            
-            // Highly translucent background to let the blur shine through
             menuContainer?.setBackgroundColor(Color.parseColor(if (isLightMode) "#33FFFFFF" else "#40000000"))
         } else {
-            // Normal dimmed background for Simple/Neon
             menuContainer?.setBackgroundColor(Color.parseColor(if (isLightMode) "#99FFFFFF" else "#B3000000"))
         }
 
-        // 2. BUILD THE PIE WHEEL BACKGROUND
         val pieRadius = dpToPx(180)
         val barPos = dpToPx(prefs.getInt("PREF_BAR_POS", 0) / 2)
 
         val pieBg = View(this).apply {
             layoutParams = FrameLayout.LayoutParams(pieRadius * 2, pieRadius * 2).apply {
                 gravity = Gravity.CENTER_VERTICAL or Gravity.END
-                setMargins(0, barPos, -pieRadius, 0) // Shift half off-screen
+                setMargins(0, barPos, -pieRadius, 0) 
             }
             
             if (themeStyle == "LiquidGlass") {
@@ -160,7 +148,6 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         }
         menuContainer?.addView(pieBg)
 
-        // 3. GENERATE THE FLOATING TILES
         val tileActions = prefs.getString("PREF_TILE_ACTIONS", "2,0,6,4,1") ?: "2,0,6,4,1"
         val ids = tileActions.split(",").mapNotNull { it.toIntOrNull() }
         
@@ -174,11 +161,11 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
 
         ids.forEachIndexed { index, actionId ->
             val angleRad = Math.toRadians(startAngle + step * index)
-            val dx = -(pieRadius * 0.75f) * cos(angleRad) // Distance from edge
+            val dx = -(pieRadius * 0.75f) * cos(angleRad) 
             val dy = (pieRadius * 0.75f) * sin(angleRad)
 
             val iconStr = actionIcons[actionId] ?: "✦"
-            val tile = createPieTile(iconStr, isLightMode)
+            val tile = createPieTile(iconStr, isLightMode, themeStyle)
 
             val tileSize = dpToPx(56)
             val tileParams = FrameLayout.LayoutParams(tileSize, tileSize)
@@ -198,12 +185,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         windowManager.addView(menuContainer, menuParams)
     }
 
-    private fun createPieTile(iconStr: String, isLightMode: Boolean): View {
-        val shapeStyle = prefs.getString("PREF_TILE_SHAPE", "Circle") ?: "Circle"
-        val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
-        
-        val cornerRad = when (shapeStyle) { "Circle" -> 200f; "Square" -> 0f; "Rounded" -> dpToPx(16).toFloat(); "Fur" -> dpToPx(8).toFloat(); else -> 200f }
-        
+    private fun createPieTile(iconStr: String, isLightMode: Boolean, themeStyle: String): View {
         val cardCol = Color.parseColor(if (isLightMode) "#FFFFFF" else "#2C2C34")
         val strokeCol = Color.parseColor(if (isLightMode) "#D1D1D6" else "#4A4A59")
         val textCol = Color.parseColor(if (isLightMode) "#000000" else "#FFFFFF")
@@ -217,24 +199,20 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
                     Color.parseColor(if (isLightMode) "#80FFFFFF" else "#66FFFFFF"), 
                     Color.parseColor(if (isLightMode) "#4DFFFFFF" else "#1AFFFFFF")
                 )).apply { 
-                    cornerRadius = cornerRad
+                    cornerRadius = 200f // Always perfectly circular
                     setStroke(4, Color.parseColor(if (isLightMode) "#FFFFFF" else "#80FFFFFF")) 
                 }
             } else if (themeStyle == "Neon") {
                 background = GradientDrawable().apply { 
                     setColor(cardCol)
-                    cornerRadius = cornerRad
-                    setStroke(5, Color.parseColor("#2979FF")) // Glowing blue border
+                    cornerRadius = 200f
+                    setStroke(5, Color.parseColor("#2979FF")) 
                 }
             } else {
                 background = GradientDrawable().apply { 
                     setColor(cardCol)
-                    cornerRadius = cornerRad
-                    if (shapeStyle == "Fur") {
-                        setStroke(6, strokeCol, 20f, 10f) // Furry dashed border
-                    } else {
-                        setStroke(2, strokeCol)
-                    }
+                    cornerRadius = 200f
+                    setStroke(2, strokeCol)
                 }
             }
         }
@@ -271,14 +249,12 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             1 -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             2 -> performGlobalAction(GLOBAL_ACTION_BACK)
             3 -> {
-                // Adjust Volume
                 val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
             }
             4 -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             5 -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             6 -> {
-                // Open Custom App
                 val pkg = prefs.getString("PREF_CUSTOM_APP_PKG", "")
                 if (!pkg.isNullOrEmpty()) {
                     val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
