@@ -165,7 +165,9 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             val dy = (pieRadius * 0.75f) * sin(angleRad)
 
             val iconStr = actionIcons[actionId] ?: "✦"
-            val tile = createPieTile(iconStr, isLightMode, themeStyle)
+            
+            // Pass the index so we can color them correctly!
+            val tile = createPieTile(iconStr, isLightMode, index)
 
             val tileSize = dpToPx(56)
             val tileParams = FrameLayout.LayoutParams(tileSize, tileSize)
@@ -185,42 +187,59 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         windowManager.addView(menuContainer, menuParams)
     }
 
-    private fun createPieTile(iconStr: String, isLightMode: Boolean, themeStyle: String): View {
+    private fun createPieTile(iconStr: String, isLightMode: Boolean, index: Int): View {
+        val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
+        val shapeStyle = prefs.getString("PREF_TILE_SHAPE", "Circle") ?: "Circle"
+        
         val cardCol = Color.parseColor(if (isLightMode) "#FFFFFF" else "#2C2C34")
         val strokeCol = Color.parseColor(if (isLightMode) "#D1D1D6" else "#4A4A59")
         val textCol = Color.parseColor(if (isLightMode) "#000000" else "#FFFFFF")
+
+        val palette = arrayOf("#2979FF", "#34C759", "#FFC107", "#FF453A", "#6C2BD9", "#00C7BE", "#FF9F0A")
+        val vibrantColor = Color.parseColor(palette[index % palette.size])
 
         val bubble = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             
-            if (themeStyle == "LiquidGlass") {
-                background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
-                    Color.parseColor(if (isLightMode) "#80FFFFFF" else "#66FFFFFF"), 
-                    Color.parseColor(if (isLightMode) "#4DFFFFFF" else "#1AFFFFFF")
-                )).apply { 
-                    cornerRadius = 200f // Always perfectly circular
+            background = GradientDrawable().apply { 
+                
+                // --- SHAPE LOGIC ---
+                if (shapeStyle == "Slice") {
+                    // Makes a wedge pointing perfectly to the right edge of the screen!
+                    cornerRadii = floatArrayOf(200f, 200f, 20f, 20f, 20f, 20f, 200f, 200f)
+                } else {
+                    val cornerRad = when (shapeStyle) { "Square" -> 0f; "Rounded" -> dpToPx(16).toFloat(); "Fur" -> dpToPx(8).toFloat(); else -> 200f }
+                    cornerRadius = cornerRad
+                }
+
+                // --- THEME LOGIC ---
+                if (themeStyle == "Colorful") {
+                    setColor(vibrantColor)
+                    if (shapeStyle == "Fur") setStroke(6, strokeCol, 20f, 10f)
+                } else if (themeStyle == "LiquidGlass") {
+                    colors = intArrayOf(
+                        Color.parseColor(if (isLightMode) "#80FFFFFF" else "#66FFFFFF"), 
+                        Color.parseColor(if (isLightMode) "#4DFFFFFF" else "#1AFFFFFF")
+                    )
+                    orientation = GradientDrawable.Orientation.TL_BR
                     setStroke(4, Color.parseColor(if (isLightMode) "#FFFFFF" else "#80FFFFFF")) 
-                }
-            } else if (themeStyle == "Neon") {
-                background = GradientDrawable().apply { 
+                } else if (themeStyle == "Neon") {
                     setColor(cardCol)
-                    cornerRadius = 200f
                     setStroke(5, Color.parseColor("#2979FF")) 
-                }
-            } else {
-                background = GradientDrawable().apply { 
+                } else {
                     setColor(cardCol)
-                    cornerRadius = 200f
-                    setStroke(2, strokeCol)
+                    if (shapeStyle == "Fur") setStroke(6, strokeCol, 20f, 10f) else setStroke(2, strokeCol)
                 }
             }
         }
         
+        val finalTxtCol = if (themeStyle == "Colorful") Color.WHITE else textCol
+
         bubble.addView(TextView(this).apply { 
             text = iconStr
             textSize = 24f
-            setTextColor(textCol)
+            setTextColor(finalTxtCol)
             gravity = Gravity.CENTER 
         })
         
