@@ -112,15 +112,8 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             PixelFormat.TRANSLUCENT
         )
 
-        if (themeStyle == "LiquidGlass") {
-            menuParams.flags = menuParams.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                menuParams.blurBehindRadius = 60 
-            }
-            menuContainer?.setBackgroundColor(Color.parseColor(if (isLightMode) "#33FFFFFF" else "#40000000"))
-        } else {
-            menuContainer?.setBackgroundColor(Color.parseColor(if (isLightMode) "#99FFFFFF" else "#B3000000"))
-        }
+        // Standard Background (No Liquid Glass hardware blur)
+        menuContainer?.setBackgroundColor(Color.parseColor(if (isLightMode) "#99FFFFFF" else "#B3000000"))
 
         val pieRadius = dpToPx(180)
         val barPos = dpToPx(prefs.getInt("PREF_BAR_POS", 0) / 2)
@@ -131,19 +124,9 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
                 setMargins(0, barPos, -pieRadius, 0) 
             }
             
-            if (themeStyle == "LiquidGlass") {
-                background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
-                    Color.parseColor(if (isLightMode) "#40FFFFFF" else "#33FFFFFF"),
-                    Color.parseColor(if (isLightMode) "#1AFFFFFF" else "#1A000000")
-                )).apply {
-                    cornerRadius = 1000f
-                    setStroke(3, Color.parseColor(if (isLightMode) "#80FFFFFF" else "#4DFFFFFF"))
-                }
-            } else {
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor(if (isLightMode) "#E5E5EA" else "#1C1C22"))
-                    cornerRadius = 1000f
-                }
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor(if (isLightMode) "#E5E5EA" else "#1C1C22"))
+                cornerRadius = 1000f
             }
         }
         menuContainer?.addView(pieBg)
@@ -165,9 +148,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             val dy = (pieRadius * 0.75f) * sin(angleRad)
 
             val iconStr = actionIcons[actionId] ?: "✦"
-            
-            // Pass the index so we can color them correctly!
-            val tile = createPieTile(iconStr, isLightMode, index)
+            val tile = createPieTile(iconStr, isLightMode)
 
             val tileSize = dpToPx(56)
             val tileParams = FrameLayout.LayoutParams(tileSize, tileSize)
@@ -187,59 +168,36 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         windowManager.addView(menuContainer, menuParams)
     }
 
-    private fun createPieTile(iconStr: String, isLightMode: Boolean, index: Int): View {
+    private fun createPieTile(iconStr: String, isLightMode: Boolean): View {
         val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
-        val shapeStyle = prefs.getString("PREF_TILE_SHAPE", "Circle") ?: "Circle"
         
         val cardCol = Color.parseColor(if (isLightMode) "#FFFFFF" else "#2C2C34")
         val strokeCol = Color.parseColor(if (isLightMode) "#D1D1D6" else "#4A4A59")
         val textCol = Color.parseColor(if (isLightMode) "#000000" else "#FFFFFF")
 
-        val palette = arrayOf("#2979FF", "#34C759", "#FFC107", "#FF453A", "#6C2BD9", "#00C7BE", "#FF9F0A")
-        val vibrantColor = Color.parseColor(palette[index % palette.size])
-
         val bubble = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             
-            background = GradientDrawable().apply { 
-                
-                // --- SHAPE LOGIC ---
-                if (shapeStyle == "Slice") {
-                    // Makes a wedge pointing perfectly to the right edge of the screen!
-                    cornerRadii = floatArrayOf(200f, 200f, 20f, 20f, 20f, 20f, 200f, 200f)
-                } else {
-                    val cornerRad = when (shapeStyle) { "Square" -> 0f; "Rounded" -> dpToPx(16).toFloat(); "Fur" -> dpToPx(8).toFloat(); else -> 200f }
-                    cornerRadius = cornerRad
-                }
-
-                // --- THEME LOGIC ---
-                if (themeStyle == "Colorful") {
-                    setColor(vibrantColor)
-                    if (shapeStyle == "Fur") setStroke(6, strokeCol, 20f, 10f)
-                } else if (themeStyle == "LiquidGlass") {
-                    colors = intArrayOf(
-                        Color.parseColor(if (isLightMode) "#80FFFFFF" else "#66FFFFFF"), 
-                        Color.parseColor(if (isLightMode) "#4DFFFFFF" else "#1AFFFFFF")
-                    )
-                    orientation = GradientDrawable.Orientation.TL_BR
-                    setStroke(4, Color.parseColor(if (isLightMode) "#FFFFFF" else "#80FFFFFF")) 
-                } else if (themeStyle == "Neon") {
+            if (themeStyle == "Neon") {
+                background = GradientDrawable().apply { 
                     setColor(cardCol)
+                    cornerRadius = 200f
                     setStroke(5, Color.parseColor("#2979FF")) 
-                } else {
+                }
+            } else {
+                background = GradientDrawable().apply { 
                     setColor(cardCol)
-                    if (shapeStyle == "Fur") setStroke(6, strokeCol, 20f, 10f) else setStroke(2, strokeCol)
+                    cornerRadius = 200f
+                    setStroke(2, strokeCol)
                 }
             }
         }
         
-        val finalTxtCol = if (themeStyle == "Colorful") Color.WHITE else textCol
-
         bubble.addView(TextView(this).apply { 
             text = iconStr
             textSize = 24f
-            setTextColor(finalTxtCol)
+            setTextColor(textCol)
             gravity = Gravity.CENTER 
         })
         
