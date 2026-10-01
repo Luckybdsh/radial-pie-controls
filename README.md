@@ -43,3 +43,12 @@ The edge trigger can be perfectly calibrated to your specific device screen:
 * **Bar Height & Width:** Scale the invisible touch-zone to match your thumb's natural resting position.
 * **Bar Opacity:** Make the edge trigger completely invisible or slightly tinted.
 * **Vertical Positioning:** Slide the trigger infinitely up and down the Y-axis to avoid interfering with specific in-app buttons or keyboards.
+---
+
+## 📥 Download the App
+
+Ready to try it out? Download the latest stable, bug-free APK directly from the official releases page:
+
+[![Download APK](https://img.shields.io/badge/Download-V1.0_APK-2979FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Luckybdsh/radial-pie-controls/releases/tag/V1.0)
+
+*(Clicking the button above will take you to the V1.0 Release page where you can download the `.apk` file under the **Assets** dropdown).*
