@@ -13,7 +13,6 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -64,11 +63,10 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         val barWidth = dpToPx(prefs.getInt("PREF_BAR_WIDTH", 55) / 10)
         val barAlpha = prefs.getInt("PREF_BAR_ALPHA", 100) / 100f
         val barPos = dpToPx(prefs.getInt("PREF_BAR_POS", 0) / 2) 
-        val isLightMode = prefs.getBoolean("PREF_IS_LIGHT_MODE", false)
 
         triggerView = View(this).apply {
             background = GradientDrawable().apply {
-                setColor(Color.parseColor(if (isLightMode) "#000000" else "#FFFFFF"))
+                setColor(Color.WHITE)
                 cornerRadius = 100f
             }
             alpha = barAlpha * 0.3f 
@@ -101,7 +99,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             setOnClickListener { hidePieMenu() }
         }
 
-        val isLightMode = prefs.getBoolean("PREF_IS_LIGHT_MODE", false)
+        val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
 
         val menuParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
@@ -110,7 +108,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             PixelFormat.TRANSLUCENT
         )
 
-        menuContainer?.setBackgroundColor(Color.parseColor(if (isLightMode) "#99FFFFFF" else "#B3000000"))
+        menuContainer?.setBackgroundColor(Color.parseColor("#B3000000"))
 
         val pieRadius = dpToPx(180)
         val barPos = dpToPx(prefs.getInt("PREF_BAR_POS", 0) / 2)
@@ -122,7 +120,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             }
             
             background = GradientDrawable().apply {
-                setColor(Color.parseColor(if (isLightMode) "#E5E5EA" else "#1C1C22"))
+                setColor(Color.parseColor("#1C1C22"))
                 cornerRadius = 1000f
             }
         }
@@ -145,9 +143,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
             val dy = (pieRadius * 0.75f) * sin(angleRad)
 
             val iconStr = actionIcons[actionId] ?: "✦"
-            
-            // Pass the index for colorful rendering!
-            val tile = createPieTile(iconStr, isLightMode, index)
+            val tile = createPieTile(iconStr, themeStyle)
 
             val tileSize = dpToPx(56)
             val tileParams = FrameLayout.LayoutParams(tileSize, tileSize)
@@ -167,50 +163,30 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
         windowManager.addView(menuContainer, menuParams)
     }
 
-    private fun createPieTile(iconStr: String, isLightMode: Boolean, index: Int): View {
-        val themeStyle = prefs.getString("PREF_VISUAL_STYLE", "Simple") ?: "Simple"
-        val shapeStyle = prefs.getString("PREF_TILE_SHAPE", "Circle") ?: "Circle"
-        
-        val cardCol = Color.parseColor(if (isLightMode) "#FFFFFF" else "#2C2C34")
-        val strokeCol = Color.parseColor(if (isLightMode) "#D1D1D6" else "#4A4A59")
-        val textCol = Color.parseColor(if (isLightMode) "#000000" else "#FFFFFF")
-
-        val palette = arrayOf("#2979FF", "#34C759", "#FFC107", "#FF453A", "#6C2BD9", "#00C7BE", "#FF9F0A")
-        val vibrantColor = Color.parseColor(palette[index % palette.size])
-
+    private fun createPieTile(iconStr: String, themeStyle: String): View {
         val bubble = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             
-            background = GradientDrawable().apply { 
-                
-                // --- SHAPE LOGIC ---
-                if (shapeStyle == "Slice") {
-                    cornerRadii = floatArrayOf(200f, 200f, 20f, 20f, 20f, 20f, 200f, 200f)
-                } else {
-                    val cornerRad = when (shapeStyle) { "Square" -> 0f; "Rounded" -> dpToPx(16).toFloat(); else -> 200f }
-                    cornerRadius = cornerRad
-                }
-
-                // --- THEME LOGIC ---
-                if (themeStyle == "Colorful") {
-                    setColor(vibrantColor)
-                } else if (themeStyle == "Neon") {
-                    setColor(cardCol)
+            if (themeStyle == "Neon") {
+                background = GradientDrawable().apply { 
+                    setColor(Color.parseColor("#2C2C34"))
+                    cornerRadius = 200f
                     setStroke(5, Color.parseColor("#2979FF")) 
-                } else {
-                    setColor(cardCol)
-                    setStroke(2, strokeCol)
+                }
+            } else {
+                background = GradientDrawable().apply { 
+                    setColor(Color.parseColor("#2C2C34"))
+                    cornerRadius = 200f
+                    setStroke(2, Color.parseColor("#4A4A59"))
                 }
             }
         }
         
-        val finalTxtCol = if (themeStyle == "Colorful") Color.WHITE else textCol
-
         bubble.addView(TextView(this).apply { 
             text = iconStr
             textSize = 24f
-            setTextColor(finalTxtCol)
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER 
         })
         
@@ -255,7 +231,7 @@ class PieAccessibilityService : AccessibilityService(), SharedPreferences.OnShar
                         Toast.makeText(this, "App not found", Toast.LENGTH_SHORT).show()
                     }
                 } else {
-                    Toast.makeText(this, "No App Selected in Settings", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "No App Selected", Toast.LENGTH_SHORT).show()
                 }
             }
         }
