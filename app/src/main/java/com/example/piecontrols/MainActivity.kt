@@ -375,7 +375,7 @@ class MainActivity : AppCompatActivity() {
             statusDot.background = GradientDrawable().apply { setColor(Color.parseColor("#34C759")); cornerRadius = 90f }
             statusText.text = "SERVICE READY (Tap Accessibility to Restart)"
             statusText.setTextColor(Color.parseColor("#34C759"))
-            overlayCard.background = GradientDrawable().apply { setColor(Color.parseColor("#091A0F")); setStroke(3, Color.parseColor("#163D22")); cornerRadius = 24f }
+            overlayCard.background = GradientDrawable().apply { setColor(Color.parseColor("#34C759")); setStroke(3, Color.parseColor("#163D22")); cornerRadius = 24f }
         }
     }
 
