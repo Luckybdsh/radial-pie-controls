@@ -680,6 +680,35 @@ class MainActivity : AppCompatActivity() {
         return panel
     }
 
+    private fun createSubscriptionPanel(): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 48, 48, 48)
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
+                Color.parseColor("#2D1A3D"), Color.parseColor("#1C1326") 
+            )).apply {
+                cornerRadius = 40f
+                setStroke(2, Color.parseColor("#6C2BD9")) 
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val proLabel = TextView(this).apply { text = "PIE CONTROLS PRO"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#B388FF")); setPadding(0, 0, 0, 16) }
+        val title = TextView(this).apply { text = "Unlock All Features"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, 0, 8) }
+        val desc = TextView(this).apply { text = "Get unlimited custom themes, more tiles, and remove all restrictions."; textSize = 12f; setTextColor(Color.parseColor("#D1C4E9")); setPadding(0, 0, 0, 32) }
+        
+        val manageBtn = Button(this).apply {
+            text = "Manage Subscription"
+            setBackgroundColor(Color.parseColor("#6C2BD9"))
+            setTextColor(Color.WHITE)
+            setOnClickListener { Toast.makeText(this@MainActivity, "Billing system will be connected here!", Toast.LENGTH_SHORT).show() }
+        }
+
+        card.addView(proLabel); card.addView(title); card.addView(desc); card.addView(manageBtn)
+        return card
+    }
+}
+
     
 
 // =======================================================================
