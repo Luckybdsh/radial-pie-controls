@@ -4,6 +4,11 @@ A premium, highly customizable edge-bar navigation assistant for Android. Pie Co
 
 Built natively in Kotlin using `WindowManager` and `AccessibilityService` APIs, it delivers a smooth, zero-latency navigation experience designed for one-handed use on large displays.
 
+##📱screenshots 
+
+![Alt text describing the image](assets/Screenshot_20261008-114603_Chrome.png)
+
+
 ## ✨ Key Features
 
 * **Interactive Drag & Drop:** Reorder your navigation tiles in real-time using a custom-built physics semicircle preview right on the home screen.
