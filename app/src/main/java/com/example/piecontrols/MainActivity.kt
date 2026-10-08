@@ -372,10 +372,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshPermissionStates() {
         if (Settings.canDrawOverlays(this)) {
-            statusDot.background = GradientDrawable().apply { setColor(Color.parseColor("#34C759")); cornerRadius = 90f }
+            statusDot.background = GradientDrawable().apply { setColor(Color.parseColor("#54c470")); cornerRadius = 90f }
             statusText.text = "SERVICE READY (Tap Accessibility to Restart)"
-            statusText.setTextColor(Color.parseColor("#34C759"))
-            overlayCard.background = GradientDrawable().apply { setColor(Color.parseColor("#34C759")); setStroke(3, Color.parseColor("#163D22")); cornerRadius = 24f }
+            statusText.setTextColor(Color.parseColor("#54c470"))
+            overlayCard.background = GradientDrawable().apply { setColor(Color.parseColor("#54c470")); setStroke(3, Color.parseColor("#163D22")); cornerRadius = 24f }
         }
     }
 
