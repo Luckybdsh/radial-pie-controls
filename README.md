@@ -6,7 +6,7 @@ Built natively in Kotlin using `WindowManager` and `AccessibilityService` APIs, 
 
 ##📱screenshots 
 
-![image] (https://github.com/Luckybdsh/radial-pie-controls/blob/main/app/assets/Screenshot_20261008-114603_Chrome.png)
+![image alt] ([https://github.com/Luckybdsh/radial-pie-controls/blob/58fbcef569acfa0488fe4d6e99be0f254426d339/app/assets/Screenshot_20261008-114603_Chrome.png](https://github.com/Luckybdsh/radial-pie-controls/blob/58fbcef569acfa0488fe4d6e99be0f254426d339/app/assets/Screenshot_20261008-114603_Chrome.png)))
 
 
 ## ✨ Key Features
