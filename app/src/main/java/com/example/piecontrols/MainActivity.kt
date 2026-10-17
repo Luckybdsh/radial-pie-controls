@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -16,6 +17,7 @@ import android.view.DragEvent
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -156,6 +158,8 @@ class MainActivity : AppCompatActivity() {
         home.addView(createSlidersPanel())
         home.addView(section("RADIAL ACTION ORDER", "Long press to move"))
         home.addView(createDragDropPanel())
+        home.addView(section("DEVELOPER", "Open source"))
+        home.addView(createDeveloperProfileCard())
         homeScroll.addView(home)
         root.addView(homeScroll)
 
@@ -170,6 +174,8 @@ class MainActivity : AppCompatActivity() {
         settings.addView(createBackupRestorePanel())
         settings.addView(section("ACCOUNT & BILLING"))
         settings.addView(createSubscriptionPanel())
+        settings.addView(section("DEVELOPER", "Creator profile"))
+        settings.addView(createDeveloperProfileCard())
         settingsScroll.addView(settings)
         root.addView(settingsScroll)
         root.addView(createBottomNavBar())
@@ -221,7 +227,6 @@ class MainActivity : AppCompatActivity() {
                 background = rounded(Coral.surfaceHigh, radius = 24f)
                 contentDescription = "Switch theme"
                 layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
-                // Removed switchTab(false) and added theme toggle action
                 setOnClickListener { toggleTheme() }
             }
             addView(settingsButton)
@@ -688,6 +693,77 @@ class MainActivity : AppCompatActivity() {
         panel.addView(pillButton("Manage subscription") {
             Toast.makeText(this, "Billing is not connected in this build.", Toast.LENGTH_SHORT).show()
         })
+        return panel
+    }
+
+    // Material 3 Expressive Developer Profile Card
+    private fun createDeveloperProfileCard(): View {
+        val panel = card(20)
+
+        val profileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(16))
+        }
+
+        // Circular frame with primary accent ring around the profile photo
+        val avatarContainer = FrameLayout(this).apply {
+            val size = dp(64)
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                marginEnd = dp(16)
+            }
+            background = rounded(Coral.surfaceHigh, Coral.primary, 32f)
+            setPadding(dp(2), dp(2), dp(2), dp(2))
+        }
+
+        val avatarImage = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            scaleType = ImageView.ScaleType.CENTER_CROP
+
+            // Dynamically resolves R.drawable.profile from app/src/main/res/drawable/profile.jpg
+            val resId = resources.getIdentifier("profile", "drawable", packageName)
+            if (resId != 0) {
+                setImageResource(resId)
+            }
+
+            // Clips the square JPG into a clean circle so the black corners are hidden
+            clipToOutline = true
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+        }
+        avatarContainer.addView(avatarImage)
+        profileRow.addView(avatarContainer)
+
+        val infoColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            addView(text("DEVELOPER", 11f, Coral.primary, true))
+            addView(text("Luckybdsh", 20f, Coral.text, true).apply {
+                setPadding(0, dp(2), 0, dp(2))
+            })
+            addView(text("Creator of Flowspace & Radial Controls", 12f, Coral.muted))
+        }
+        profileRow.addView(infoColumn)
+        panel.addView(profileRow)
+
+        // Button with GitHub text logo (</>) before "GitHub" that opens https://github.com/Luckybdsh
+        val githubButton = pillButton("</>  GitHub") {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Luckybdsh"))
+            startActivity(intent)
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        panel.addView(githubButton)
+
         return panel
     }
 }
