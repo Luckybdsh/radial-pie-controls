@@ -7,8 +7,8 @@
     <path d="M480 711 240 471l56-56 144 144v-383h80v383l144-144 56 56-240 240ZM240 856q-33 0-56.5-23.5T160 776v-80h80v80h480v-80h80v80q0 33-23.5 56.5T720 856H240Z"/>
   </svg>
 
-  <!-- Button Text -->
-  <text x="64" y="34" font-family="Roboto, sans-serif" font-size="16" font-weight="600" fill="#FFFFFF" alignment-baseline="middle">
+  <!-- Button Text (Adjusted for perfect vertical centering) -->
+  <text x="64" y="28" font-family="Roboto, sans-serif" font-size="16" font-weight="600" fill="#FFFFFF" dominant-baseline="middle" alignment-baseline="middle">
     Download APK
   </text>
 </svg>
