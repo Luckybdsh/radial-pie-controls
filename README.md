@@ -74,6 +74,10 @@ The edge trigger can be perfectly calibrated to your specific device screen:
 
 Ready to try it out? Download the latest stable, bug-free APK directly from the official releases page:
 
-[![Download APK](https://img.shields.io/badge/Download-V1.0_APK-2979FF?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Luckybdsh/radial-pie-controls/releases/tag/V1.0)
+<div align="center">
+  <a href="https://github.com/Luckybdsh/radial-pie-controls/releases/download/V1.0/app-debug.apk">
+    <img src="app/assets/download-button.svg" alt="Download" width="200"/>
+  </a>
+</div>
 
 *(Clicking the button above will take you to the V1.0 Release page where you can download the `.apk` file under the **Assets** dropdown).*
