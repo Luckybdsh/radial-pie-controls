@@ -4,6 +4,9 @@ A premium, highly customizable edge-bar navigation assistant for Android. Pie Co
 
 Built natively in Kotlin using `WindowManager` and `AccessibilityService` APIs, it delivers a smooth, zero-latency navigation experience designed for one-handed use on large displays.
 
+[![Download APK](https://img.shields.io/badge/Download_APK-6750A4?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Luckybdsh/radial-pie-controls/releases/download/V1.0/app-release.apk)
+
+
 ## ✨ menu view 
 
 <p align="center">
