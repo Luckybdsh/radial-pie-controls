@@ -18,14 +18,17 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // This tells Gradle to sign the release build automatically using the default debug keystore
+            // This strips out debug flags and ensures the output is a true release binary
+            isDebuggable = false
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    
     kotlinOptions {
         jvmTarget = "17"
     }
