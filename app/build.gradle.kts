@@ -18,6 +18,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // This tells Gradle to sign the release build automatically using the default debug keystore
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
