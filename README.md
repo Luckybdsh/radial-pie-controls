@@ -6,6 +6,11 @@ Built natively in Kotlin using `WindowManager` and `AccessibilityService` APIs, 
 
 [![Download APK](app/assets/download-button.svg)](https://github.com/Luckybdsh/radial-pie-controls/releases/download/V1.0/app-debug.apk)
 
+<div align="center">
+  <a href="https://github.com/Luckybdsh/radial-pie-controls/releases/download/V1.0/app-debug.apk">
+    <img src="app/assets/download-button.svg" alt="Download" width="200"/>
+  </a>
+</div>
 
 
 
