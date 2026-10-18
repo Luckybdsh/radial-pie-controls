@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="56" viewBox="0 0 200 56">
+  <!-- Material 3 Expressive Pill Background (Primary Color) -->
+  <rect width="200" height="56" rx="28" fill="#6750A4"/>
+  
+  <!-- Material Symbols Download Icon -->
+  <svg x="24" y="16" width="24" height="24" viewBox="0 96 960 960" fill="#FFFFFF">
+    <path d="M480 711 240 471l56-56 144 144v-383h80v383l144-144 56 56-240 240ZM240 856q-33 0-56.5-23.5T160 776v-80h80v80h480v-80h80v80q0 33-23.5 56.5T720 856H240Z"/>
+  </svg>
+
+  <!-- Button Text -->
+  <text x="64" y="34" font-family="Roboto, sans-serif" font-size="16" font-weight="600" fill="#FFFFFF" alignment-baseline="middle">
+    Download APK
+  </text>
+</svg>
