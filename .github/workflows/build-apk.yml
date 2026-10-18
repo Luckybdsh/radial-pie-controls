@@ -22,17 +22,8 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x gradlew
 
-      - name: Generate Production Keystore Automatically
-        run: |
-          keytool -genkey -v -keystore app/release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias releasekey -storepass password123 -keypass password123 -dname "CN=Developer, OU=App, O=Mobile, L=Jaipur, ST=Rajasthan, C=IN"
-
-      - name: Build and Sign Release APK
-        run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=release.jks \
-            -Pandroid.injected.signing.store.password=password123 \
-            -Pandroid.injected.signing.alias=releasekey \
-            -Pandroid.injected.signing.key.password=password123
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
